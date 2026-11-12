@@ -1,14 +1,18 @@
-name: Orb! WASM and browser tests
+name: Orb! WASM, browser tests and SDK package
 
 on:
   push:
-    branches: [web-wasm-implementation]
+    branches: [main, productize-orb-web-sdk]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,3 +36,14 @@ jobs:
         run: make test-web
       - name: Build browser examples
         run: make web-examples
+      - name: Test the installable runtime package
+        run: make test-package
+      - name: Build runtime package archive
+        run: make package-web
+      - name: Upload runtime package
+        uses: actions/upload-artifact@v4
+        with:
+          name: orb-web-runtime-0.2.0
+          path: build/packages/*.tgz
+          if-no-files-found: error
+          retention-days: 90

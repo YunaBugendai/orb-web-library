@@ -3,6 +3,7 @@ CFLAGS  ?= -O2 -std=gnu11 -Wall -Wextra -Wno-unused-parameter -Wno-clobbered -Wn
 PREFIX  ?= /usr/local
 SRC      = src/util.c src/lexer.c src/parser.c src/types.c src/sema.c src/check.c src/lower.c src/opt.c src/emit.c src/wasm.c src/platform.c src/main.c
 STD      = std/core.orb std/math.orb std/strings.orb std/io.orb std/vec.orb std/os_linux.orb std/os_macos.orb std/os_windows.orb std/os_wasm.orb std/web.orb
+WEB_EXAMPLES = counter todo form fetch stopwatch starter
 BUILD    = build
 
 all: $(BUILD)/orb
@@ -27,12 +28,23 @@ test-wasm: $(BUILD)/orb
 test-web: $(BUILD)/orb
 	python3 tests/web/run.py
 
-# builds the example web applications next to their index.html; then: make serve
+# Compile the browser examples into runnable .wasm files.
 web-examples: $(BUILD)/orb
-	for d in counter todo form fetch stopwatch; do $(BUILD)/orb build examples/web/$$d/main.orb --target wasm -o examples/web/$$d/app.wasm || exit 1; done
+	@for d in $(WEB_EXAMPLES); do \
+		$(BUILD)/orb build examples/web/$$d/main.orb --target wasm -o examples/web/$$d/app.wasm || exit 1; \
+	done
+
+# Build a clean npm-compatible runtime package in build/packages.
+package-web: test-package
+	@mkdir -p $(BUILD)/packages
+	npm pack --pack-destination $(BUILD)/packages
+
+test-package:
+	npm test
+	npm pack --dry-run
 
 serve:
-	@echo "open http://localhost:8000/examples/web/counter/index.html"
+	@echo "starter: http://localhost:8000/examples/web/starter/"
 	python3 -m http.server 8000
 
 bench: $(BUILD)/orb
@@ -48,4 +60,4 @@ vsix:
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all test test-wasm test-web web-examples serve bench install vsix clean
+.PHONY: all test test-wasm test-web web-examples package-web test-package serve bench install vsix clean

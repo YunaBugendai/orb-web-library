@@ -18,22 +18,58 @@ standard module `web`.
 There is no HTML parser or template language in Orb!, and no JavaScript transpilation: `main.orb` is
 compiled by the real Orb! compiler's WebAssembly backend (see [WASM.md](WASM.md)).
 
-## Installation
+## Installation and distribution
 
-You need the Orb! compiler (`make && sudo make install`, see the README). Compiling to WebAssembly needs
-**no assembler, linker, LLVM or Emscripten**; the compiler writes the `.wasm` file itself.
+You need the Orb! compiler to build your application. From this repository, build it with make;
+the compiler itself can optionally be installed with sudo make install. Compiling to WebAssembly needs
+**no assembler, linker, LLVM or Emscripten**; the compiler writes the .wasm file itself.
 
-```sh
-make                          # builds build/orb
-make web-examples             # compiles examples/web/*/main.orb to app.wasm
-make serve                    # python3 -m http.server; open http://localhost:8000/examples/web/counter/index.html
-```
+For a local checkout, build and run the bundled apps:
 
-To use Orb! Web in your own project you need two things next to your `index.html`: your compiled
-`app.wasm` and a copy of `web/orb.js`.
+~~~
+make
+make web-examples
+make serve
+~~~
 
-> A page must be served over `http://` or `https://` (any static file server). Browsers do not let a
-> `file://` page fetch the `.wasm` file.
+Open the starter at http://localhost:8000/examples/web/starter/, or the counter at
+http://localhost:8000/examples/web/counter/.
+
+### Install the browser runtime as a package
+
+The JavaScript runtime is an ESM package and can be installed directly from this GitHub repository:
+
+~~~
+npm install github:YunaBugendai/orb-web-library
+~~~
+
+In a bundler-based application:
+
+~~~
+import { start } from "orb-web-runtime";
+await start("/app.wasm");
+~~~
+
+For a plain static site without a bundler, copy node_modules/orb-web-runtime/web/orb.js
+next to your HTML and import it with a relative path:
+
+~~~
+<script type="module">
+  import { start } from "./orb.js";
+  await start("./app.wasm");
+</script>
+~~~
+
+The .wasm file is still compiled separately:
+
+~~~
+orb build src/main.orb --target wasm -o public/app.wasm
+~~~
+
+See DISTRIBUTION.md for package pinning, TypeScript declarations and packaging.
+
+> A page must be served over http:// or https:// (any static file server). Browsers do not let a
+> file:// page fetch the .wasm file.
 
 ## Getting started
 
