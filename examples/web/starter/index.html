@@ -16,17 +16,6 @@
     <button id="increment" type="button">Increment</button>
     <p id="status" class="status" role="status">Loading WebAssembly…</p>
   </main>
-  <script type="module">
-    import { start } from "../../../web/orb.js";
-
-    const status = document.querySelector("#status");
-    try {
-      await start("./app.wasm");
-      status.textContent = "Orb! application ready.";
-    } catch (error) {
-      console.error(error);
-      status.textContent = "Could not load app.wasm. Run make web-examples from the repository root.";
-    }
-  </script>
+  <script type="module" src="./app.wasm.js"></script>
 </body>
 </html>

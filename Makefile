@@ -12,8 +12,8 @@ $(BUILD)/embed: tools/embed.c
 	@mkdir -p $(BUILD)
 	$(CC) -O1 -o $@ $<
 
-$(BUILD)/stdlib_data.c: $(BUILD)/embed $(STD) Makefile
-	$(BUILD)/embed $(STD) > $@
+$(BUILD)/stdlib_data.c: $(BUILD)/embed $(STD) web/orb.js Makefile
+	$(BUILD)/embed --runtime web/orb.js $(STD) > $@
 
 $(BUILD)/orb: $(SRC) $(BUILD)/stdlib_data.c src/*.h
 	$(CC) $(CFLAGS) -Isrc -o $@ $(SRC) $(BUILD)/stdlib_data.c
@@ -34,15 +34,6 @@ web-examples: $(BUILD)/orb
 		$(BUILD)/orb build examples/web/$$d/main.orb --target wasm -o examples/web/$$d/app.wasm || exit 1; \
 	done
 
-# Build a clean npm-compatible runtime package in build/packages.
-package-web: test-package
-	@mkdir -p $(BUILD)/packages
-	npm pack --pack-destination $(BUILD)/packages
-
-test-package:
-	npm test
-	npm pack --dry-run
-
 serve:
 	@echo "starter: http://localhost:8000/examples/web/starter/"
 	python3 -m http.server 8000
@@ -60,4 +51,4 @@ vsix:
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all test test-wasm test-web web-examples package-web test-package serve bench install vsix clean
+.PHONY: all test test-wasm test-web web-examples serve bench install vsix clean

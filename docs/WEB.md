@@ -10,66 +10,44 @@ standard module `web`.
         |                           v
         |                       app.wasm  (your logic, Orb! compiled to WebAssembly)
         |                           |
-        +---- web/orb.js (loader + host functions: the only JavaScript, ~350 lines, no app logic)
+        +---- app.wasm.js (generated automatically; contains the embedded browser host runtime)
                                     |
                               browser: DOM, events, timers, storage, location, fetch, JSON
 ```
 
 There is no HTML parser or template language in Orb!, and no JavaScript transpilation: `main.orb` is
-compiled by the real Orb! compiler's WebAssembly backend (see [WASM.md](WASM.md)).
+compiled by the real Orb! compiler's WebAssembly backend (see [WASM.md](WASM.md)). The browser bridge source
+is maintained in `web/orb.js` and embedded into the compiler; developers do not copy or install it.
 
-## Installation and distribution
+## Installation: built in, not an extra package
 
-You need the Orb! compiler to build your application. From this repository, build it with make;
-the compiler itself can optionally be installed with sudo make install. Compiling to WebAssembly needs
-**no assembler, linker, LLVM or Emscripten**; the compiler writes the .wasm file itself.
+The standard library is embedded in the Orb! compiler itself. `use math;`, `use strings;`, and
+`use web;` are resolved from the compiler's built-in modules. There is no npm package to install,
+no `--std` path to configure and no separate browser runtime download.
 
-For a local checkout, build and run the bundled apps:
+Build your program:
 
-~~~
-make
-make web-examples
-make serve
-~~~
+```sh
+orb build main.orb --target wasm -o app.wasm
+```
 
-Open the starter at http://localhost:8000/examples/web/starter/, or the counter at
-http://localhost:8000/examples/web/counter/.
+Orb! writes **two files**:
 
-### Install the browser runtime as a package
+- `app.wasm`: your program, compiled from Orb! to WebAssembly.
+- `app.wasm.js`: the embedded browser runtime plus an automatic launcher for `app.wasm`.
 
-The JavaScript runtime is an ESM package and can be installed directly from this GitHub repository:
+Add one script tag to your HTML:
 
-~~~
-npm install github:YunaBugendai/orb-web-library
-~~~
+```html
+<script type="module" src="./app.wasm.js"></script>
+```
 
-In a bundler-based application:
+That's it. No JavaScript import, npm install, copied runtime, Emscripten, LLVM, assembler or linker.
+Serve the page over HTTP or HTTPS; browsers do not let a `file://` page fetch a `.wasm` file.
 
-~~~
-import { start } from "orb-web-runtime";
-await start("/app.wasm");
-~~~
-
-For a plain static site without a bundler, copy node_modules/orb-web-runtime/web/orb.js
-next to your HTML and import it with a relative path:
-
-~~~
-<script type="module">
-  import { start } from "./orb.js";
-  await start("./app.wasm");
-</script>
-~~~
-
-The .wasm file is still compiled separately:
-
-~~~
-orb build src/main.orb --target wasm -o public/app.wasm
-~~~
-
-See DISTRIBUTION.md for package pinning, TypeScript declarations and packaging.
-
-> A page must be served over http:// or https:// (any static file server). Browsers do not let a
-> file:// page fetch the .wasm file.
+The generated launcher exposes `window.orb` after startup and sets `window.ready = true`. Advanced
+users can import the lower-level runtime source from the Orb! repository and call `start(url, options)`
+themselves when custom host imports or lifecycle callbacks are needed.
 
 ## Getting started
 
@@ -79,10 +57,7 @@ See DISTRIBUTION.md for package pinning, TypeScript declarations and packaging.
 <html><body>
   <button id="go">Say hello</button>
   <p id="out"></p>
-  <script type="module">
-    import { start } from "./orb.js";
-    start("app.wasm");
-  </script>
+  <script type="module" src="./app.wasm.js"></script>
 </body></html>
 ```
 
