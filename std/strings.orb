@@ -1,0 +1,91 @@
+// str - string helpers (strings are immutable byte slices: ptr + len)
+
+pub error ParseError;
+
+// Returns a newly allocated concatenation of a and b. Release with free().
+pub fn concat(a: str, b: str) -> str {
+    n := a.len + b.len;
+    buf := make(u8, n);
+    __memcpy(buf.ptr, a.ptr, a.len);
+    __memcpy(buf.ptr + a.len, b.ptr, b.len);
+    return buf as str;
+}
+
+pub fn starts_with(s: str, prefix: str) -> bool {
+    if prefix.len > s.len { return false; }
+    return s[0..prefix.len] == prefix;
+}
+
+pub fn ends_with(s: str, suffix: str) -> bool {
+    if suffix.len > s.len { return false; }
+    return s[s.len - suffix.len..s.len] == suffix;
+}
+
+// Index of the first occurrence of needle in s, or -1.
+pub fn find(s: str, needle: str) -> i64 {
+    if needle.len == 0 { return 0; }
+    i := 0;
+    while i + needle.len <= s.len {
+        if s[i..i + needle.len] == needle { return i; }
+        i += 1;
+    }
+    return -1;
+}
+
+pub fn is_space(c: u8) -> bool {
+    return c == ' ' || c == '\n' || c == '\t' || c == '\r';
+}
+
+pub fn trim(s: str) -> str {
+    lo := 0;
+    hi := s.len;
+    while lo < hi && is_space(s[lo]) { lo += 1; }
+    while hi > lo && is_space(s[hi - 1]) { hi -= 1; }
+    return s[lo..hi];
+}
+
+// Parses a (possibly negative) decimal integer.
+pub fn parse_i64(s: str) -> i64! {
+    if s.len == 0 { fail ParseError; }
+    i := 0;
+    neg := false;
+    if s[0] == '-' {
+        neg = true;
+        i = 1;
+        if s.len == 1 { fail ParseError; }
+    }
+    v := 0;
+    while i < s.len {
+        c := s[i];
+        if c < '0' || c > '9' { fail ParseError; }
+        v = v * 10 + ((c - '0') as i64);
+        i += 1;
+    }
+    if neg { return 0 - v; }
+    return v;
+}
+
+// Converts an integer to a newly allocated decimal string. Release with free().
+pub fn from_i64(n: i64) -> str {
+    buf: [24]u8;
+    i := 24;
+    u := n as u64;
+    neg := n < 0;
+    if neg { u = 0 - u; }
+    if u == 0 {
+        i -= 1;
+        buf[i] = '0';
+    }
+    while u != 0 {
+        i -= 1;
+        buf[i] = (u % 10) as u8 + '0';
+        u /= 10;
+    }
+    if neg {
+        i -= 1;
+        buf[i] = '-';
+    }
+    out := make(u8, 24 - i);
+    __memcpy(out.ptr, &buf[i], 24 - i);
+    return out as str;
+}

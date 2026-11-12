@@ -1,0 +1,2 @@
+// expect: condition must be bool
+fn main() { x := 1; if x { } }

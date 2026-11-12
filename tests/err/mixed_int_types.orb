@@ -1,0 +1,2 @@
+// expect: needs operands of the same type
+fn main() { a: i32 = 1; b: i64 = 2; println(a + b); }

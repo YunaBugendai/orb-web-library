@@ -1,0 +1,4 @@
+// expect:  can only be used in a function that returns an error union
+error Bad;
+fn f() -> i64! { fail Bad; }
+fn main() { x := try f(); println(x); }

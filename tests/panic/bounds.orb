@@ -1,0 +1,2 @@
+// expect: index out of bounds: index 5, length 3
+fn main() { a := [1, 2, 3]; i := 5; println(a[i]); }

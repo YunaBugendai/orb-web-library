@@ -1,0 +1,2 @@
+// expect: division by zero
+fn main() { x := 5; println(x / 0); }

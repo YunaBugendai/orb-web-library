@@ -1,0 +1,37 @@
+// Generic functions and a generic container from the standard library.
+use vec;
+use math;
+
+struct Pair<A, B> {
+    first: A,
+    second: B,
+}
+
+fn make_pair<A, B>(a: A, b: B) -> Pair<A, B> {
+    return Pair<A, B>{ first: a, second: b };
+}
+
+fn largest<T>(xs: []T) -> T {
+    best := xs[0];
+    for x in xs {
+        if x > best { best = x; }
+    }
+    return best;
+}
+
+fn main() {
+    ints := [3, 9, 4, 1];
+    floats := [2.5, 0.5, 7.25];
+    println(largest(ints[..]), " ", largest(floats[..]));
+
+    p := make_pair(7, "seven");
+    println(p.first, " ", p.second);
+
+    v: vec.Vec<f64>;
+    for i in 0..5 { v.push(math.sqrt(i as f64)); }
+    total := 0.0;
+    for i in 0..v.len { total += v.get(i); }
+    println("sum of roots: ", total);
+    println(math.max(3, 8), " ", math.min(2.5, 1.5), " ", math.abs(-12));
+    v.free_vec();
+}

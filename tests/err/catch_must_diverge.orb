@@ -1,0 +1,4 @@
+// expect: must end with return, break, continue
+error Bad;
+fn f() -> i64! { fail Bad; }
+fn main() { x := f() catch |e| { println(e); }; println(x); }

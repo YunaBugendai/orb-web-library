@@ -1,0 +1,130 @@
+// math - basic numeric helpers
+
+pub const PI = 3.14159265358979323846;
+pub const E = 2.71828182845904523536;
+
+pub fn sqrt(x: f64) -> f64 {
+    return __sqrt(x);
+}
+
+pub fn abs<T>(x: T) -> T {
+    if x < 0 { return -x; }
+    return x;
+}
+
+pub fn min<T>(a: T, b: T) -> T {
+    if b < a { return b; }
+    return a;
+}
+
+pub fn max<T>(a: T, b: T) -> T {
+    if b > a { return b; }
+    return a;
+}
+
+pub fn clamp<T>(x: T, lo: T, hi: T) -> T {
+    if x < lo { return lo; }
+    if x > hi { return hi; }
+    return x;
+}
+
+// largest integer value <= x (valid for |x| < 2^62)
+pub fn floor(x: f64) -> f64 {
+    if x != x { return x; }
+    if x >= 4.0e18 || x <= -4.0e18 { return x; }
+    t := (x as i64) as f64;
+    if t > x { return t - 1.0; }
+    return t;
+}
+
+pub fn ceil(x: f64) -> f64 {
+    f := floor(x);
+    if f < x { return f + 1.0; }
+    return f;
+}
+
+pub fn round(x: f64) -> f64 {
+    return floor(x + 0.5);
+}
+
+// x raised to an integer power
+pub fn powi(x: f64, n: i64) -> f64 {
+    r := 1.0;
+    b := x;
+    e := n;
+    if e < 0 { e = 0 - e; }
+    while e > 0 {
+        if e & 1 == 1 { r *= b; }
+        b *= b;
+        e >>= 1;
+    }
+    if n < 0 { return 1.0 / r; }
+    return r;
+}
+
+pub fn ipow(base: i64, exp: i64) -> i64 {
+    r := 1;
+    b := base;
+    e := exp;
+    while e > 0 {
+        if e & 1 == 1 { r *= b; }
+        b *= b;
+        e >>= 1;
+    }
+    return r;
+}
+
+// sine / cosine with range reduction; accurate to about 1e-12 for |x| < 1e6
+pub fn sin(x: f64) -> f64 {
+    two_pi := 6.28318530717958647692;
+    k := floor(x / two_pi + 0.5);
+    r := x - k * two_pi;
+    r2 := r * r;
+    term := r;
+    sum := r;
+    for i in 1..14 {
+        term = 0.0 - term * r2 / (((2 * i) as f64) * ((2 * i + 1) as f64));
+        sum += term;
+    }
+    return sum;
+}
+
+pub fn cos(x: f64) -> f64 {
+    return sin(x + 1.57079632679489661923);
+}
+
+// e^x via range reduction to [-0.35, 0.35] and a Taylor series
+pub fn exp(x: f64) -> f64 {
+    ln2 := 0.69314718055994530942;
+    k := floor(x / ln2 + 0.5);
+    r := x - k * ln2;
+    term := 1.0;
+    sum := 1.0;
+    for i in 1..20 {
+        term = term * r / (i as f64);
+        sum += term;
+    }
+    n := k as i64;
+    return sum * powi(2.0, n);
+}
+
+// natural logarithm (x > 0) by Newton iterations on exp
+pub fn ln(x: f64) -> f64 {
+    if x <= 0.0 { return 0.0 / 0.0; }
+    y := 0.0;
+    m := x;
+    e := 0;
+    while m > 2.0 { m /= 2.0; e += 1; }
+    while m < 0.5 { m *= 2.0; e -= 1; }
+    // ln(m) with atanh series: ln(m) = 2*atanh((m-1)/(m+1))
+    z := (m - 1.0) / (m + 1.0);
+    z2 := z * z;
+    term := z;
+    sum := 0.0;
+    for i in 0..30 {
+        sum += term / ((2 * i + 1) as f64);
+        term *= z2;
+    }
+    y = 2.0 * sum + (e as f64) * 0.69314718055994530942;
+    return y;
+}

@@ -1,0 +1,17 @@
+// Reads text from standard input and counts lines, words and bytes.
+use io;
+use strings;
+
+fn main() {
+    text := io.read_stdin() catch |e| { eprintln("cannot read input: ", e); return; };
+    lines := 0;
+    words := 0;
+    in_word := false;
+    for c in text {
+        if c == '\n' { lines += 1; }
+        if strings.is_space(c) { in_word = false; }
+        else if !in_word { in_word = true; words += 1; }
+    }
+    println(lines, " lines, ", words, " words, ", text.len, " bytes");
+    free(text);
+}

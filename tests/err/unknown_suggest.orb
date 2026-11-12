@@ -1,0 +1,2 @@
+// expect: did you mean 'counter'
+fn main() { counter := 1; println(countr); }

@@ -1,0 +1,30 @@
+// Error handling with error unions: `T!`, `fail`, `try` and `catch`.
+error Insufficient, NegativeAmount;
+
+struct Account {
+    owner: str,
+    balance: i64,
+}
+
+fn withdraw(a: *Account, amount: i64) -> ! {
+    if amount < 0 { fail NegativeAmount; }
+    if amount > a.balance { fail Insufficient; }
+    a.balance -= amount;
+}
+
+fn transfer(from: *Account, to: *Account, amount: i64) -> ! {
+    try withdraw(from, amount);
+    to.balance += amount;
+}
+
+fn main() {
+    alice := Account{ owner: "alice", balance: 100 };
+    bob := Account{ owner: "bob", balance: 20 };
+
+    transfer(&alice, &bob, 30) catch |e| { println("unexpected: ", e); return; };
+    println(alice.owner, "=", alice.balance, " ", bob.owner, "=", bob.balance);
+
+    transfer(&bob, &alice, 500) catch |e| { println("transfer failed: ", e); };
+    transfer(&bob, &alice, -5) catch |e| { println("transfer failed: ", e); };
+    println(alice.balance, " ", bob.balance);
+}

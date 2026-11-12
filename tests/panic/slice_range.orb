@@ -1,0 +1,2 @@
+// expect: invalid slice range
+fn main() { s := "hello"; n := 9; println(s[2..n]); }

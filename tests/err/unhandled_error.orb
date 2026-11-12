@@ -1,0 +1,4 @@
+// expect: unhandled error
+error Bad;
+fn f() -> i64! { fail Bad; }
+fn main() { f(); }

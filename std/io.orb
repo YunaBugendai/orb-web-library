@@ -1,0 +1,104 @@
+// io - files and standard input
+
+pub error IoError, NotFound;
+
+fn cstring(s: str) -> *u8 {
+    p := mem_alloc(s.len + 1);
+    __memcpy(p, s.ptr, s.len);
+    p[s.len] = 0;
+    return p;
+}
+
+fn read_fd(fd: i64) -> str! {
+    cap := 4096;
+    len := 0;
+    buf := mem_alloc(cap);
+    loop {
+        if len == cap {
+            ncap := cap * 2;
+            nb := mem_alloc(ncap);
+            __memcpy(nb, buf, len);
+            free(buf);
+            buf = nb;
+            cap = ncap;
+        }
+        r := __syscall(0, fd, buf + len, cap - len);
+        if r < 0 {
+            free(buf);
+            fail IoError;
+        }
+        if r == 0 { break; }
+        len += r;
+    }
+    return str_from(buf, len);
+}
+
+// Reads a whole file. The result is allocated; release it with free().
+pub fn read_file(path: str) -> str! {
+    c := cstring(path);
+    fd := __syscall(2, c, 0, 0);
+    free(c);
+    if fd < 0 {
+        if fd == -2 { fail NotFound; }
+        fail IoError;
+    }
+    r := read_fd(fd) catch |e| {
+        __syscall(3, fd);
+        fail e;
+    };
+    __syscall(3, fd);
+    return r;
+}
+
+// Creates or truncates a file and writes data to it.
+pub fn write_file(path: str, data: str) -> ! {
+    c := cstring(path);
+    fd := __syscall(2, c, 577, 420);
+    free(c);
+    if fd < 0 { fail IoError; }
+    off := 0;
+    while off < data.len {
+        r := __syscall(1, fd, data.ptr + off, data.len - off);
+        if r <= 0 {
+            __syscall(3, fd);
+            fail IoError;
+        }
+        off += r;
+    }
+    __syscall(3, fd);
+}
+
+// Reads all of standard input.
+pub fn read_stdin() -> str! {
+    flush();
+    return read_fd(0);
+}
+
+// Reads one line from standard input (without the trailing newline).
+// Fails with IoError at end of input. The result is allocated.
+pub fn read_line() -> str! {
+    flush();
+    cap := 128;
+    len := 0;
+    buf := mem_alloc(cap);
+    loop {
+        if len == cap {
+            nb := mem_alloc(cap * 2);
+            __memcpy(nb, buf, len);
+            free(buf);
+            buf = nb;
+            cap *= 2;
+        }
+        r := __syscall(0, 0, buf + len, 1);
+        if r <= 0 {
+            if len == 0 {
+                free(buf);
+                fail IoError;
+            }
+            break;
+        }
+        if buf[len] == '\n' { break; }
+        len += 1;
+    }
+    return str_from(buf, len);
+}

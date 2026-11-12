@@ -1,0 +1,32 @@
+// Function pointers, slices, and in-place sorting.
+fn less(a: i64, b: i64) -> bool { return a < b; }
+fn greater(a: i64, b: i64) -> bool { return a > b; }
+
+fn insertion_sort(xs: []i64, before: fn(i64, i64) -> bool) {
+    for i in 1..xs.len {
+        key := xs[i];
+        j := i - 1;
+        while j >= 0 && before(key, xs[j]) {
+            xs[j + 1] = xs[j];
+            j -= 1;
+        }
+        xs[j + 1] = key;
+    }
+}
+
+fn show(xs: []i64) {
+    for i, x in xs {
+        if i > 0 { print(", "); }
+        print(x);
+    }
+    println();
+}
+
+fn main() {
+    data := [42, 7, 19, 3, 88, 1, 56, 23];
+    insertion_sort(data[..], less);
+    show(data[..]);
+    insertion_sort(data[..], greater);
+    show(data[..]);
+    show(data[2..5]);
+}

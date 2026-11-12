@@ -1,0 +1,337 @@
+// core - the Orb! runtime and prelude. Every program imports this implicitly.
+// It is written in Orb! itself and talks to the Linux kernel directly (no libc).
+
+// ---------------------------------------------------------------- process
+g_argc: i64 = 0;
+g_argv: **u8;
+
+pub fn rt_init(argc: i64, argv: **u8) {
+    g_argc = argc;
+    g_argv = argv;
+}
+
+pub fn rt_exit(code: i64) -> never {
+    flush();
+    __syscall(231, code);
+    loop {}
+}
+
+pub fn rt_main_err(code: i64) -> never {
+    if code != 0 {
+        err_begin();
+        print_str("error: ");
+        print_err(code);
+        print_nl();
+        rt_exit(1);
+    }
+    rt_exit(0);
+}
+
+// Terminates the program immediately (after flushing standard output).
+pub fn exit(code: i64) -> never {
+    rt_exit(code);
+}
+
+// ---------------------------------------------------------------- output
+out_buf: [65536]u8;
+out_len: i64 = 0;
+cur_fd: i64 = 1;
+
+fn sys_write(fd: i64, p: *u8, n: i64) -> i64 {
+    return __syscall(1, fd, p, n);
+}
+
+fn write_all(fd: i64, p: *u8, n: i64) {
+    off := 0;
+    while off < n {
+        r := sys_write(fd, p + off, n - off);
+        if r <= 0 { break; }
+        off += r;
+    }
+}
+
+// Writes buffered standard output to the terminal / pipe.
+pub fn flush() {
+    if out_len > 0 {
+        write_all(1, &out_buf[0], out_len);
+        out_len = 0;
+    }
+}
+
+fn write_bytes(p: *u8, n: i64) {
+    if cur_fd != 1 {
+        write_all(cur_fd, p, n);
+        return;
+    }
+    if n > 65536 - out_len { flush(); }
+    if n >= 65536 {
+        write_all(1, p, n);
+        return;
+    }
+    __memcpy(&out_buf[0] + out_len, p, n);
+    out_len += n;
+}
+
+pub fn err_begin() {
+    flush();
+    cur_fd = 2;
+}
+pub fn err_end() {
+    cur_fd = 1;
+}
+
+pub fn print_str(s: str) {
+    write_bytes(s.ptr, s.len);
+}
+pub fn print_nl() {
+    write_bytes("\n".ptr, 1);
+}
+pub fn print_bool(b: bool) {
+    if b { print_str("true"); } else { print_str("false"); }
+}
+pub fn print_err(code: i64) {
+    print_str(__errname(code));
+}
+
+pub fn print_u64(v: u64) {
+    buf: [24]u8;
+    i := 24;
+    u := v;
+    if u == 0 {
+        i -= 1;
+        buf[i] = '0';
+    }
+    while u != 0 {
+        i -= 1;
+        buf[i] = (u % 10) as u8 + '0';
+        u /= 10;
+    }
+    write_bytes(&buf[i], 24 - i);
+}
+
+pub fn print_i64(v: i64) {
+    if v < 0 {
+        print_str("-");
+        print_u64(0 - (v as u64));
+    } else {
+        print_u64(v as u64);
+    }
+}
+
+pub fn print_ptr(v: u64) {
+    buf: [24]u8;
+    i := 24;
+    u := v;
+    if u == 0 {
+        i -= 1;
+        buf[i] = '0';
+    }
+    while u != 0 {
+        i -= 1;
+        d := (u & 15) as u8;
+        if d < 10 { buf[i] = d + '0'; } else { buf[i] = d - 10 + 'a'; }
+        u >>= 4;
+    }
+    print_str("0x");
+    write_bytes(&buf[i], 24 - i);
+}
+
+// f64 formatting: six fractional digits, scientific notation for huge values.
+pub fn print_f64(x: f64) {
+    if x != x { print_str("nan"); return; }
+    v := x;
+    if v < 0.0 {
+        print_str("-");
+        v = 0.0 - v;
+    }
+    if v > 1.0e308 { print_str("inf"); return; }
+    e := 0;
+    if v >= 1.0e18 {
+        while v >= 10.0 {
+            v /= 10.0;
+            e += 1;
+        }
+    }
+    ip := v as u64;
+    fr := ((v - (ip as f64)) * 1000000.0 + 0.5) as u64;
+    if fr >= 1000000 {
+        ip += 1;
+        fr -= 1000000;
+    }
+    print_u64(ip);
+    print_str(".");
+    digits: [6]u8;
+    k := 6;
+    while k > 0 {
+        k -= 1;
+        digits[k] = (fr % 10) as u8 + '0';
+        fr /= 10;
+    }
+    write_bytes(&digits[0], 6);
+    if e > 0 {
+        print_str("e");
+        print_i64(e);
+    }
+}
+
+// ---------------------------------------------------------------- panics
+fn cstr_len(p: *u8) -> i64 {
+    n := 0;
+    while p[n] != 0 { n += 1; }
+    return n;
+}
+
+fn panic_at(file: *u8, line: i64) -> never {
+    print_str(" (");
+    write_bytes(file, cstr_len(file));
+    print_str(":");
+    print_i64(line);
+    print_str(")");
+    print_nl();
+    rt_exit(101);
+}
+
+pub fn panic(msg: str) -> never {
+    err_begin();
+    print_str("panic: ");
+    print_str(msg);
+    print_nl();
+    rt_exit(101);
+}
+
+pub fn panic_bounds(file: *u8, line: i64, idx: i64, len: i64) -> never {
+    err_begin();
+    print_str("panic: index out of bounds: index ");
+    print_i64(idx);
+    print_str(", length ");
+    print_i64(len);
+    panic_at(file, line);
+}
+
+pub fn panic_slice(file: *u8, line: i64, lo: i64, hi: i64, len: i64) -> never {
+    err_begin();
+    print_str("panic: invalid slice range ");
+    print_i64(lo);
+    print_str("..");
+    print_i64(hi);
+    print_str(" for length ");
+    print_i64(len);
+    panic_at(file, line);
+}
+
+pub fn panic_div(file: *u8, line: i64) -> never {
+    err_begin();
+    print_str("panic: division by zero or negative size");
+    panic_at(file, line);
+}
+
+pub fn assert(cond: bool, msg: str) {
+    if !cond { panic(msg); }
+}
+
+// ---------------------------------------------------------------- strings
+pub fn str_eq(a: str, b: str) -> bool {
+    if a.len != b.len { return false; }
+    i := 0;
+    while i < a.len {
+        if a.ptr[i] != b.ptr[i] { return false; }
+        i += 1;
+    }
+    return true;
+}
+
+struct RawStr { ptr: *u8, len: i64 }
+
+// Builds a str from a pointer and a length (no copy, no checks).
+pub fn str_from(p: *u8, n: i64) -> str {
+    r := RawStr{ ptr: p, len: n };
+    return *(&r as *str);
+}
+
+// ---------------------------------------------------------------- memory
+const HDR = 16;
+const CHUNK = 4194304;
+const MAX_SMALL = 1048576;
+heap_cur: *u8;
+heap_end: *u8;
+free_lists: [32]*u8;
+
+fn sys_mmap(size: i64) -> *u8 {
+    r := __syscall(9, 0, size, 3, 34, -1, 0);
+    if r < 0 && r > -4096 { return null; }
+    return r as *u8;
+}
+
+fn alloc_raw(n: i64, zero: bool) -> *u8 {
+    want := n;
+    if want < 1 { want = 1; }
+    total := want + HDR;
+    if total > MAX_SMALL {
+        sz := (total + 4095) / 4096 * 4096;
+        p := sys_mmap(sz);
+        if p == null { panic("out of memory"); }
+        hdr := p as *i64;
+        hdr[0] = -1;
+        hdr[1] = sz;
+        return p + HDR;
+    }
+    cls := 4;
+    size := 16;
+    while size < total {
+        size *= 2;
+        cls += 1;
+    }
+    head := free_lists[cls];
+    if head != null {
+        free_lists[cls] = *(head as **u8);
+        if zero { __memzero(head, want); }
+        return head;
+    }
+    if heap_cur + size > heap_end {
+        p := sys_mmap(CHUNK);
+        if p == null { panic("out of memory"); }
+        heap_cur = p;
+        heap_end = p + CHUNK;
+    }
+    blk := heap_cur;
+    heap_cur += size;
+    hdr := blk as *i64;
+    hdr[0] = cls;
+    hdr[1] = size;
+    out := blk + HDR;
+    if zero { __memzero(out, want); }
+    return out;
+}
+
+// Allocates n bytes (uninitialised). Release with free().
+pub fn mem_alloc(n: i64) -> *u8 {
+    return alloc_raw(n, false);
+}
+
+// Allocates n zeroed bytes. Used by new(T) and make(T, n).
+pub fn mem_zalloc(n: i64) -> *u8 {
+    return alloc_raw(n, true);
+}
+
+pub fn mem_free(p: *u8) {
+    if p == null { return; }
+    hdr := (p - HDR) as *i64;
+    cls := hdr[0];
+    if cls < 0 {
+        __syscall(11, hdr, hdr[1]);
+        return;
+    }
+    *(p as **u8) = free_lists[cls];
+    free_lists[cls] = p;
+}
+
+// ---------------------------------------------------------------- program arguments
+// Returns the command-line arguments (including the program name at index 0).
+pub fn args() -> []str {
+    out := make(str, g_argc);
+    for i in 0..g_argc {
+        p := g_argv[i];
+        out[i] = str_from(p, cstr_len(p));
+    }
+    return out;
+}

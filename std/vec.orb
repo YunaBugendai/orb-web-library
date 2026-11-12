@@ -1,0 +1,78 @@
+// vec - a growable array. A zero-valued Vec is a valid empty vector.
+//
+//   use vec;
+//   v: vec.Vec<i64>;       // empty
+//   v.push(10);
+//   println(v.get(0));
+//   v.free_vec();
+
+pub struct Vec<T> {
+    data: *T,
+    len: i64,
+    cap: i64,
+}
+
+fn grow<T>(v: *Vec<T>) {
+    ncap := 8;
+    if v.cap > 0 { ncap = v.cap * 2; }
+    nd := make(T, ncap);
+    i := 0;
+    while i < v.len {
+        nd[i] = v.data[i];
+        i += 1;
+    }
+    if v.data != null { free(v.data); }
+    v.data = nd.ptr;
+    v.cap = ncap;
+}
+
+pub fn push<T>(v: *Vec<T>, x: T) {
+    if v.len == v.cap { grow(v); }
+    v.data[v.len] = x;
+    v.len += 1;
+}
+
+pub fn get<T>(v: *Vec<T>, i: i64) -> T {
+    if i < 0 || i >= v.len { panic("Vec.get: index out of range"); }
+    return v.data[i];
+}
+
+pub fn set<T>(v: *Vec<T>, i: i64, x: T) {
+    if i < 0 || i >= v.len { panic("Vec.set: index out of range"); }
+    v.data[i] = x;
+}
+
+pub fn pop<T>(v: *Vec<T>) -> T {
+    if v.len == 0 { panic("Vec.pop: vector is empty"); }
+    v.len -= 1;
+    return v.data[v.len];
+}
+
+pub fn count<T>(v: *Vec<T>) -> i64 {
+    return v.len;
+}
+
+// A slice view of the elements (valid until the next push).
+pub fn items<T>(v: *Vec<T>) -> []T {
+    if v.len == 0 { return make(T, 0); }
+    p := v.data;
+    s := make(T, 0);
+    return slice_of(p, v.len);
+}
+
+pub fn slice_of<T>(p: *T, n: i64) -> []T {
+    r := SliceRaw<T>{ ptr: p, len: n };
+    return *(&r as *[]T);
+}
+
+struct SliceRaw<T> {
+    ptr: *T,
+    len: i64,
+}
+
+pub fn free_vec<T>(v: *Vec<T>) {
+    if v.data != null { free(v.data); }
+    v.data = null;
+    v.len = 0;
+    v.cap = 0;
+}

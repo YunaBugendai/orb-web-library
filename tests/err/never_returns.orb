@@ -1,0 +1,3 @@
+// expect: cannot return
+fn f() -> never { return; }
+fn main() { f(); }

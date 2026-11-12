@@ -1,0 +1,2 @@
+// expect: out of bounds for array of length 3
+fn main() { a := [1, 2, 3]; println(a[3]); }

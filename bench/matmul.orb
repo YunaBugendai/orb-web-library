@@ -1,0 +1,18 @@
+const N = 300;
+a: [90000]f64;
+b: [90000]f64;
+c: [90000]f64;
+fn main() {
+    for i in 0..N { for j in 0..N {
+        a[i * N + j] = (i + j) as f64 * 0.5;
+        b[i * N + j] = (i - j) as f64 * 0.25;
+    } }
+    for i in 0..N {
+        for j in 0..N {
+            s := 0.0;
+            for k in 0..N { s += a[i * N + k] * b[k * N + j]; }
+            c[i * N + j] = s;
+        }
+    }
+    println(c[N * 17 + 33], " ", c[N * N - 1]);
+}

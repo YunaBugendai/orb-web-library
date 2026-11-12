@@ -1,0 +1,38 @@
+use strings;
+error Nope;
+fn greet(name: str) -> str! {
+    if name.len == 0 { fail Nope; }
+    return strings.concat("hi ", name);
+}
+fn fcross(x: f64) -> f64 {
+    a := x * 2.0;
+    b := x + 3.0;
+    c := (1 + 2 + 3) as f64;
+    return a + b + c;
+}
+fn pairret(a: i64) -> []i64 {
+    s := make(i64, 3);
+    s[0] = a; s[1] = a * 2; s[2] = a * 3;
+    return s;
+}
+fn tail(s: str, n: i64) -> str { return s[n..]; }
+fn main() {
+    println(fcross(1.5));
+    r := pairret(4);
+    println(r[0], r[1], r[2], r.len);
+    println(tail("hello world", 6), "|", tail("abc", 3), "|");
+    println(strings.trim("  x y  "), "|");
+    args := args();
+    println("argc=", args.len);
+    nn := 0;
+    for a in args { nn += a.len; }
+    println(nn > 0);
+    x: i32 = -7;
+    println(x / 2, " ", x % 3, " ", (x as i64) >> 1, " ", -7 / 2, " ", -7 % 3);
+    u: u64 = 18446744073709551615;
+    println(u, " ", u / 10, " ", u % 10, " ", (u >> 1) as f64);
+    big := 9223372036854775807;
+    println(big, " ", big + 1);
+    println(1e10, " ", 123456789.125, " ", 0.1 + 0.2, " ", -0.0005);
+    println(3 > 2 && 2 > 1, " ", !(1 == 1) || false);
+}

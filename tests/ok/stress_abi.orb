@@ -1,0 +1,58 @@
+use vec;
+use io;
+use strings;
+
+struct V3 { x: f64, y: f64, z: f64 }
+struct Big { a: i64, b: i64, c: i64, d: i64, e: i64, f: i64, g: i64, h: i64, i: i64, j: i64, k: i64, l: i64, m: i64, n: i64, o: i64, p: i64, q: i64, r: i64, s: i64 }
+error Nope;
+
+fn many(a: i64, b: i64, c: i64, d: i64, e: i64, f: i64, g: i64, h: i64, i: i64) -> i64 {
+    return a + b * 2 + c * 3 + d * 4 + e * 5 + f * 6 + g * 7 + h * 8 + i * 9;
+}
+fn manyf(a: f64, b: f64, c: f64, d: f64, e: f64, f: f64, g: f64, h: f64) -> f64 {
+    return a - b + c * d - e / f + g * h;
+}
+fn add3(a: V3, b: V3) -> V3 { return V3{ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }; }
+fn dot(a: *V3, b: *V3) -> f64 { return a.x * b.x + a.y * b.y + a.z * b.z; }
+fn mkbig(n: i64) -> Big {
+    b: Big;
+    b.a = n; b.s = n * 2; b.j = 7;
+    return b;
+}
+fn pressure(x: i64) -> i64 {
+    a := x + 1; b := x + 2; c := x + 3; d := x + 4; e := x + 5; f := x + 6; g := x + 7;
+    h := x + 8; i := x + 9; j := x + 10; k := x + 11; l := x + 12; m := x + 13; n := x + 14;
+    o := x + 15; p := x + 16;
+    s := a * b + c * d + e * f + g * h + i * j + k * l + m * n + o * p;
+    return s + a + b + c + d + e + f + g + h + i + j + k + l + m + n + o + p + many(a, b, c, d, e, f, g, h, i);
+}
+fn greet(name: str) -> str! {
+    if name.len == 0 { fail Nope; }
+    return strings.concat("hi ", name);
+}
+fn fcross(x: f64) -> f64 {
+    a := x * 2.0;
+    b := x + 3.0;
+    c := many(1, 2, 3, 4, 5, 6, 7, 8, 9) as f64;
+    return a + b + c;
+}
+fn pairret(a: i64) -> []i64 {
+    s := make(i64, 3);
+    s[0] = a; s[1] = a * 2; s[2] = a * 3;
+    return s;
+}
+fn tail(s: str, n: i64) -> str { return s[n..]; }
+
+fn main() {
+    println(many(1, 2, 3, 4, 5, 6, 7, 8, 9));
+    println(manyf(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0));
+    v := add3(V3{x: 1.0, y: 2.0, z: 3.0}, V3{x: 0.5, y: 0.5, z: 0.5});
+    println(v.x, " ", v.y, " ", v.z, " ", dot(&v, &v));
+    b := mkbig(21);
+    println(b.a, " ", b.s, " ", b.j, " ", b.k);
+    println(pressure(3));
+    h := greet("bob") catch "?";
+    println(h);
+    h2 := greet("") catch |e| { println("failed: ", e); return; };
+    println(h2);
+}

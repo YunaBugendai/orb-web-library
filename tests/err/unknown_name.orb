@@ -1,0 +1,2 @@
+// expect: unknown name 'foo'
+fn main() { println(foo); }

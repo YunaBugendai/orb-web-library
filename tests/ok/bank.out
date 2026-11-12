@@ -1,0 +1,4 @@
+alice=70 bob=50
+transfer failed: Insufficient
+transfer failed: NegativeAmount
+70 50

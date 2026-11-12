@@ -1,0 +1,65 @@
+// A singly linked list with explicit memory management.
+struct Node {
+    value: i64,
+    next: *Node,
+}
+
+struct List {
+    head: *Node,
+    len: i64,
+}
+
+fn push_front(l: *List, v: i64) {
+    n := new(Node);
+    n.value = v;
+    n.next = l.head;
+    l.head = n;
+    l.len += 1;
+}
+
+fn sum(l: *List) -> i64 {
+    total := 0;
+    cur := l.head;
+    while cur != null {
+        total += cur.value;
+        cur = cur.next;
+    }
+    return total;
+}
+
+fn reverse(l: *List) {
+    prev: *Node = null;
+    cur := l.head;
+    while cur != null {
+        next := cur.next;
+        cur.next = prev;
+        prev = cur;
+        cur = next;
+    }
+    l.head = prev;
+}
+
+fn destroy(l: *List) {
+    cur := l.head;
+    while cur != null {
+        next := cur.next;
+        free(cur);
+        cur = next;
+    }
+    l.head = null;
+    l.len = 0;
+}
+
+fn main() {
+    list: List;
+    for i in 1..=10 { list.push_front(i * i); }
+    print("list:");
+    cur := list.head;
+    while cur != null { print(" ", cur.value); cur = cur.next; }
+    println();
+    println("len=", list.len, " sum=", list.sum());
+    list.reverse();
+    println("first after reverse: ", list.head.value);
+    list.destroy();
+    println("len after destroy: ", list.len);
+}

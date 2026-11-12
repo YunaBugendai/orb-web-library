@@ -1,0 +1,14 @@
+fn zero_of<T>() -> T { x: T; return x; }
+error NotFound;
+fn find(xs: []i64, v: i64) -> i64! {
+    for i, x in xs { if x == v { return i; } }
+    fail NotFound;
+}
+fn main() {
+    a := [10, 20, 30, 40];
+    println(a[..2].len, " ", a[2..].len, " ", a[..].len, " ", a[1..=2].len);
+    println(zero_of<f64>(), " ", zero_of<i32>());
+    println(find(a[..], 30) catch -1, " ", find(a[..], 99) catch -1);
+    s := "hello";
+    println(s[..3], s[3..]);
+}

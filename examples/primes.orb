@@ -1,0 +1,21 @@
+// Sieve of Eratosthenes using a heap-allocated slice.
+fn count_primes(limit: i64) -> i64 {
+    composite := make(bool, limit + 1);
+    count := 0;
+    for i in 2..=limit {
+        if composite[i] { continue; }
+        count += 1;
+        j := i * i;
+        while j <= limit {
+            composite[j] = true;
+            j += i;
+        }
+    }
+    free(composite);
+    return count;
+}
+
+fn main() {
+    println("primes below 100:     ", count_primes(100));
+    println("primes below 1000000: ", count_primes(1000000));
+}

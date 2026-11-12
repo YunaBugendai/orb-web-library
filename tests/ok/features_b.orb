@@ -1,0 +1,70 @@
+use math;
+use vec;
+use strings;
+
+struct Counter { n: i64, step: i64 }
+enum Color { Red, Green = 5, Blue }
+const LIMIT = 10;
+total: i64 = 0;
+names: [3]str;
+
+fn bump(c: *Counter) { c.n += c.step; }
+fn apply(f: fn(i64) -> i64, v: i64) -> i64 { return f(v); }
+fn dbl(x: i64) -> i64 { return x * 2; }
+fn swap(a: *i64, b: *i64) { t := *a; *a = *b; *b = t; }
+
+fn main() {
+    // generics + UFCS
+    println(math.min(3, 7), " ", math.max(2.5, 1.5), " ", math.abs(-4));
+    v: vec.Vec<i64>;
+    for i in 0..20 { v.push(i * i); }
+    println("len=", v.len, " v[7]=", v.get(7), " pop=", v.pop());
+    // methods on structs
+    c := Counter{ n: 1, step: 4 };
+    c.bump(); c.bump();
+    println("counter=", c.n);
+    // fn pointers
+    println(apply(dbl, 21));
+    // pointers
+    a := 1; b := 2;
+    swap(&a, &b);
+    println(a, b);
+    // enums
+    col := Color.Blue;
+    println(col as i64, " ", Color.Green as i64, " ", col == Color.Blue);
+    // heap
+    p := new(Counter);
+    p.n = 99;
+    q := make(i32, 5);
+    for i in 0..5 { q[i] = (i * 3) as i32; }
+    println(p.n, " ", q[4], " ", q.len);
+    free(p); free(q);
+    // narrow ints
+    x: u8 = 250;
+    x += 10;
+    y: i8 = 127;
+    y += 1;
+    z: u32 = 4000000000;
+    z += 500000000;
+    println(x, " ", y, " ", z, " ", (-1) as u64 >> 60);
+    // strings
+    s := strings.concat("foo", "bar");
+    println(s, " ", s.len, " ", strings.find(s, "ob"), " ", strings.starts_with(s, "foo"));
+    n := strings.parse_i64("-1234") catch 0;
+    println(n + 1);
+
+    // globals & loops
+    for i in 0..LIMIT {
+        if i % 2 == 0 { continue; }
+        if i > 7 { break; }
+        total += i;
+    }
+    names[1] = "mid";
+    println(total, " ", names[1], " ", names[0].len);
+    mat: [3][3]i64;
+    for i in 0..3 { for j in 0..3 { mat[i][j] = i * 3 + j; } }
+    println(mat[2][1], " ", sizeof(Counter), " ", sizeof(mat));
+    for i, ch in "abc" { print(i, ch, " "); }
+    println();
+    println(1.0 / 3.0, " ", math.floor(-2.5), " ", math.sin(1.0), " ", math.exp(1.0), " ", math.ln(10.0));
+}

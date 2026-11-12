@@ -1,0 +1,70 @@
+error Neg, Zero;
+struct P { x: i64, y: i64 }
+struct Line { a: P, b: P, tag: str }
+greeting: str = "hi there";
+ratio: f64 = 2.5;
+limit: i64 = 1000;
+flag: bool = true;
+const NAME = "orb";
+const SCALE: f64 = 0.5;
+
+fn root(x: f64) -> f64! {
+    if x < 0.0 { fail Neg; }
+    return x * SCALE;
+}
+fn mkp(n: i64) -> P! {
+    if n == 0 { fail Zero; }
+    return P{ x: n, y: n * n };
+}
+fn length2(l: Line) -> i64 {
+    dx := l.b.x - l.a.x;
+    dy := l.b.y - l.a.y;
+    return dx * dx + dy * dy;
+}
+fn lines() -> [3]Line {
+    out: [3]Line;
+    for i in 0..3 {
+        out[i] = Line{ a: P{x: 0, y: 0}, b: P{x: i, y: i + 1}, tag: NAME };
+    }
+    return out;
+}
+fn use_all() -> ! {
+    p := try mkp(4);
+    r := try root(9.0);
+    println(p.x, " ", p.y, " ", r);
+    q := try mkp(0);
+    println("not reached ", q.x);
+}
+
+fn main() {
+    println(greeting, " ", ratio, " ", limit, " ", flag, " ", NAME, " ", SCALE);
+    println(root(16.0) catch -1.0, " ", root(-1.0) catch -1.0);
+    p := mkp(3) catch P{ x: 0, y: 0 };
+    z := mkp(0) catch P{ x: -1, y: -1 };
+    println(p.y, " ", z.x);
+    ls := lines();
+    total := 0;
+    for l in ls { total += length2(l); }
+    println(total, " ", ls[2].tag, " ", ls[1].b.y);
+    x := 1;
+    {
+        x := 2;
+        println(x);
+    }
+    println(x);
+    big: [100000]i64;
+    for i in 0..100000 { big[i] = i; }
+    s := 0;
+    for v in big { s += v; }
+    println(s);
+    use_all() catch |e| { println("use_all failed: ", e); };
+    if greeting == "hi there" && NAME != "x" { println("string compare ok"); }
+    a: [4]f64;
+    for i in 0..4 { a[i] = i as f64 * 1.5; }
+    println(a[3], " ", a.len);
+    arr2 := [P{x:1,y:2}, P{x:3,y:4}];
+    println(arr2[1].x + arr2[0].y);
+    cnt := 0;
+    for i in 0..10 { for j in 0..10 { if (i + j) % 3 == 0 { cnt += 1; } } }
+    println(cnt);
+}

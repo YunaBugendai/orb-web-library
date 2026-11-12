@@ -1,0 +1,31 @@
+// A tiny floating point simulation: two bodies orbiting under gravity.
+use math;
+
+struct Body {
+    x: f64, y: f64,
+    vx: f64, vy: f64,
+    mass: f64,
+}
+
+fn step(a: *Body, b: *Body, dt: f64) {
+    dx := b.x - a.x;
+    dy := b.y - a.y;
+    d2 := dx * dx + dy * dy;
+    d := math.sqrt(d2);
+    f := a.mass * b.mass / d2;
+    fx := f * dx / d;
+    fy := f * dy / d;
+    a.vx += fx / a.mass * dt;
+    a.vy += fy / a.mass * dt;
+    b.vx -= fx / b.mass * dt;
+    b.vy -= fy / b.mass * dt;
+    a.x += a.vx * dt; a.y += a.vy * dt;
+    b.x += b.vx * dt; b.y += b.vy * dt;
+}
+
+fn main() {
+    sun := Body{ x: 0.0, y: 0.0, vx: 0.0, vy: 0.0, mass: 1000.0 };
+    earth := Body{ x: 10.0, y: 0.0, vx: 0.0, vy: 10.0, mass: 1.0 };
+    for i in 0..100000 { step(&sun, &earth, 0.0001); }
+    println("earth at (", earth.x, ", ", earth.y, ")");
+}

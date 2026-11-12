@@ -1,0 +1,3 @@
+// expect: cannot infer type parameter
+fn zero_of<T>() -> T { x: T; return x; }
+fn main() { y := zero_of(); }

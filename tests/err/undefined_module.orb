@@ -1,0 +1,3 @@
+// expect: cannot find module 'nosuchmod'
+use nosuchmod;
+fn main() {}

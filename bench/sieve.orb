@@ -1,0 +1,15 @@
+const N = 20000000;
+flags: [20000001]u8;
+fn main() {
+    count := 0;
+    i := 2;
+    while i <= N {
+        if flags[i] == 0 {
+            count += 1;
+            j := i * 2;
+            while j <= N { flags[j] = 1; j += i; }
+        }
+        i += 1;
+    }
+    println(count);
+}

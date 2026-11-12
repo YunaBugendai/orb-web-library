@@ -1,0 +1,56 @@
+use math;
+use vec;
+use strings;
+
+struct Point { x: i64, y: i64 }
+struct Rect { min: Point, max: Point, name: str }
+enum Color { Red, Green = 5, Blue }
+error Oops, Bad;
+
+fn fib(n: i64) -> i64 {
+    if n < 2 { return n; }
+    return fib(n - 1) + fib(n - 2);
+}
+
+fn area(r: Rect) -> i64 {
+    return (r.max.x - r.min.x) * (r.max.y - r.min.y);
+}
+
+fn sum(xs: []i64) -> i64 {
+    t := 0;
+    for x in xs { t += x; }
+    return t;
+}
+
+fn half(n: i64) -> i64! {
+    if n % 2 != 0 { fail Oops; }
+    return n / 2;
+}
+
+fn twice(n: i64) -> i64! {
+    h := try half(n);
+    return try half(h);
+}
+
+fn apply(f: fn(i64) -> i64, v: i64) -> i64 { return f(v); }
+fn dbl(x: i64) -> i64 { return x * 2; }
+
+fn swap(a: *i64, b: *i64) {
+    t := *a;
+    *a = *b;
+    *b = t;
+}
+
+fn main() {
+    println("fib(20) = ", fib(20));
+    r := Rect{ min: Point{x: 1, y: 2}, max: Point{x: 11, y: 7}, name: "box" };
+    println(r.name, " area=", area(r));
+    arr := [1, 2, 3, 4, 5];
+    println("sum=", sum(arr[..]), " sub=", sum(arr[1..4]));
+    f := 3.5;
+    g := f * 2.0 + 1.25;
+    println("float: ", g, " sqrt2=", math.sqrt(2.0));
+    println(twice(12) catch 0, " ", twice(6) catch 99);
+    v := twice(5) catch |e| { println("caught ", e); return; };
+    println("unreachable ", v);
+}

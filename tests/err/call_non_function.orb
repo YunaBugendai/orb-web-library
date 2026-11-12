@@ -1,0 +1,2 @@
+// expect: cannot call a value
+fn main() { x := 1; x(); }

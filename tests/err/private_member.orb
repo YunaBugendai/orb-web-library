@@ -1,0 +1,3 @@
+// expect: is private to module
+use helper_mod;
+fn main() { helper_mod.secret(); }

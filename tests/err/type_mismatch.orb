@@ -1,0 +1,2 @@
+// expect: type mismatch: expected i64, found str
+fn main() { x: i64 = "hello"; }

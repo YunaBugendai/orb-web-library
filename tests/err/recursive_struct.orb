@@ -1,0 +1,3 @@
+// expect: contains itself by value
+struct A { a: A }
+fn main() {}

@@ -1,0 +1,2 @@
+// expect: cannot assign to loop variable
+fn main() { for i in 0..3 { i = 5; } }
