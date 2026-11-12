@@ -1,0 +1,121 @@
+name: Orb! release packages
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build compiler and test
+        run: |
+          make
+          make test
+          make test-wasm
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+          make test-web
+      - name: Package VS Code extension
+        run: python tools/package-vsix.py build/dist
+      - name: Create Linux release archive
+        run: python tools/package-release.py --version "${GITHUB_REF_NAME#v}" --platform linux-x86_64 --output-dir dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orb-linux-x86_64
+          path: dist/*
+
+  macos:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build compiler and test
+        run: |
+          make
+          make test
+      - name: Package VS Code extension
+        run: python tools/package-vsix.py build/dist
+      - name: Create macOS release archive
+        run: python tools/package-release.py --version "${GITHUB_REF_NAME#v}" --platform macos-x86_64 --output-dir dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orb-macos-x86_64
+          path: dist/*
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up UCRT64 build tools
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            make
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-binutils
+      - name: Build and smoke-test native compiler
+        shell: msys2 {0}
+        run: |
+          make CFLAGS="-O2 -std=gnu11 -Wall -Wextra -Wno-unused-parameter -Wno-clobbered -static -static-libgcc"
+          ./build/orb.exe version
+          ./build/orb.exe doctor
+          ./build/orb.exe build examples/hello.orb -o build/orb-windows-smoke.exe
+          ./build/orb-windows-smoke.exe
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Package VS Code extension
+        run: python tools/package-vsix.py build/dist
+      - name: Create portable Windows archive
+        run: python tools/package-release.py --version "${{ github.ref_name }}" --platform windows-x86_64 --output-dir dist
+      - name: Compile graphical component installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "Inno Setup 6 compiler was not found." }
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          & $iscc "/DAppVersion=$version" "installer\Orb.iss"
+          $installer = "build\installer\Orb-Setup-$version.exe"
+          Copy-Item $installer "dist\Orb-Setup-$version.exe"
+          $hash = (Get-FileHash -Path $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Orb-Setup-$version.exe" | Out-File -Encoding ascii "dist\Orb-Setup-$version.exe.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orb-windows-x86_64
+          path: dist/*
+
+  publish:
+    needs: [linux, macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: orb-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: release-assets/*

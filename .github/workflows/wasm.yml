@@ -36,8 +36,15 @@ jobs:
         run: make test-web
       - name: Build browser examples
         run: make web-examples
-      - name: Check installer wizard syntax
-        run: python -m py_compile tools/install.py
+      - name: Check installer and release packager syntax
+        run: python -m py_compile tools/install.py tools/setup.py tools/package-release.py
+      - name: Build and inspect Linux release package
+        run: |
+          python tools/package-vsix.py build/dist
+          python tools/package-release.py --version 0.2.0 --platform linux-x86_64 --output-dir build/release-test
+          python -c "import tarfile; t=tarfile.open('build/release-test/orb-linux-x86_64.tar.gz'); names=t.getnames(); assert 'bin/orb' in names; assert 'share/orb/examples' in names; assert 'share/orb/docs' in names; print('release archive contents: OK')"
+      - name: Check bootstrapper help
+        run: python tools/setup.py --help
       - name: Test component-based installation
         run: |
           printf '2,3\n\n' | python tools/install.py --prefix build/install-smoke

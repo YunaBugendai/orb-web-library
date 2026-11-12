@@ -18,14 +18,22 @@ fn main() {
 
 ## Installing Orb!
 
-- **Windows:** download `Orb-Setup-0.2.0.exe` from the latest successful
-  [Windows installer workflow](https://github.com/YunaBugendai/orb-web-library/actions/workflows/windows-installer.yml).
-  The graphical wizard lets you select the VS Code extension, examples, documentation and source files.
-- **Linux/macOS:** from a source checkout, run `python3 tools/install.py` for the component-selection wizard.
+**Linux / macOS:**
+```sh
+curl -fsSL https://raw.githubusercontent.com/YunaBugendai/orb-web-library/main/install.sh | sh
+```
 
-The compiler's standard modules (`math`, `strings`, `vec`, `io`, `web`) are built in. WebAssembly
-programs automatically get a browser launcher; there is no separate runtime package to install.
+**Windows PowerShell:**
+```powershell
+irm https://raw.githubusercontent.com/YunaBugendai/orb-web-library/main/install.ps1 | iex
+```
 
+The installer downloads the matching compiler release and opens a component selector. Choose the
+VS Code extension, examples, offline documentation and contributor source files as needed.
+The compiler is required; its standard modules (`math`, `strings`, `vec`, `io`, `web`) and
+WebAssembly browser runtime are built in. No npm package or separate standard-library download is needed.
+
+See [docs/INSTALLATION.md](docs/INSTALLATION.md) for details.
 ## Quick start
 
 Requirements: a C compiler (to build the compiler) plus the platform's assembler/linker:

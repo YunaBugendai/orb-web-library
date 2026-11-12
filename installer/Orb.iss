@@ -1,5 +1,7 @@
 #define AppName "Orb!"
-#define AppVersion "0.2.0"
+#ifndef AppVersion
+  #define AppVersion "0.2.0"
+#endif
 #define AppPublisher "Orb Technologies"
 
 [Setup]
