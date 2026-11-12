@@ -3,7 +3,6 @@
   "version": "0.2.0",
   "private": false,
   "description": "Browser runtime for Orb! WebAssembly applications.",
-  "type": "module",
   "exports": {
     ".": {
       "types": "./web/orb.d.ts",
@@ -14,6 +13,7 @@
   "files": [
     "web/orb.js",
     "web/orb.d.ts",
+    "web/package.json",
     "std/web.orb",
     "std/os_wasm.orb",
     "docs/WEB.md",
