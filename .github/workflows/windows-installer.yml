@@ -24,11 +24,14 @@ jobs:
             make
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-binutils
-      - name: Build native Orb! compiler
+      - name: Build and smoke-test native Orb! compiler
         shell: msys2 {0}
         run: |
           make CFLAGS="-O2 -std=gnu11 -Wall -Wextra -Wno-unused-parameter -Wno-clobbered -static -static-libgcc"
           ./build/orb.exe version
+          ./build/orb.exe doctor
+          ./build/orb.exe build examples/hello.orb -o build/orb-windows-smoke.exe
+          ./build/orb-windows-smoke.exe
       - name: Set up Python for VS Code packaging
         uses: actions/setup-python@v5
         with:

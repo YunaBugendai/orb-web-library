@@ -38,3 +38,7 @@ jobs:
         run: make web-examples
       - name: Check installer wizard syntax
         run: python -m py_compile tools/install.py
+      - name: Test component-based installation
+        run: |
+          printf '2,3\\n' | python tools/install.py --prefix build/install-smoke
+          build/install-smoke/bin/orb doctor

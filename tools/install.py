@@ -175,7 +175,7 @@ def main() -> int:
     if args.dry_run:
         print("\nDry run only; no files were changed.")
         return 0
-    if not yes_no("\nInstall Orb! with these components?", True):
+    if not args.yes and not yes_no("\nInstall Orb! with these components?", True):
         print("Installation cancelled.")
         return 0
 
