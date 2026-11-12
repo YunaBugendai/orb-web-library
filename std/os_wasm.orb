@@ -1,0 +1,75 @@
+// os (WebAssembly, wasm32) - the system interface for programs compiled with `--target wasm`.
+//
+// There is no kernel: console output, process exit and (empty) input are host imports from the
+// module "orb_rt" (implemented by web/orb.js and tools/orb-node.js). Memory comes from the
+// WebAssembly linear memory, which grows in 64 KiB pages with `memory.grow` (__memgrow).
+// Pointers are 64-bit values in Orb! but addresses are always below 4 GiB.
+
+extern fn host_write(fd: i32, p: *u8, n: i32) -> i32 = "orb_rt.write";
+extern fn host_read(fd: i32, p: *u8, n: i32) -> i32 = "orb_rt.read";
+extern fn host_exit(code: i32) -> never = "orb_rt.exit";
+
+pub fn init() {}
+
+pub fn write(fd: i64, p: *u8, n: i64) -> i64 {
+    r := host_write(fd as i32, p, n as i32);
+    return r as i64;
+}
+
+pub fn read(fd: i64, p: *u8, n: i64) -> i64 {
+    r := host_read(fd as i32, p, n as i32);
+    return r as i64;
+}
+
+// A browser has no file system: files are reported as missing / not writable.
+pub fn open_read(path: *u8) -> i64 {
+    return -2;
+}
+
+pub fn open_write(path: *u8) -> i64 {
+    return -1;
+}
+
+pub fn close(fd: i64) {}
+
+pub fn exit(code: i64) -> never {
+    host_exit(code as i32);
+    loop {}
+}
+
+// Released large regions are kept on a list (their first two words are [next, pages]) and reused
+// for a later request of the same page count, because linear memory can never shrink.
+free_regions: *u8;
+
+// whole pages of zeroed memory, or null
+pub fn alloc(size: i64) -> *u8 {
+    pages := (size + 65535) / 65536;
+    prev: *u8 = null;
+    cur := free_regions;
+    while cur != null {
+        h := cur as *i64;
+        nxt := h[0] as *u8;
+        if h[1] == pages {
+            if prev == null {
+                free_regions = nxt;
+            } else {
+                ph := prev as *i64;
+                ph[0] = nxt as i64;
+            }
+            __memzero(cur, size);
+            return cur;
+        }
+        prev = cur;
+        cur = nxt;
+    }
+    old := __memgrow(pages);
+    if old < 0 { return null; }
+    return (old * 65536) as *u8;
+}
+
+pub fn release(p: *u8, size: i64) {
+    h := p as *i64;
+    h[0] = free_regions as i64;
+    h[1] = (size + 65535) / 65536;
+    free_regions = p;
+}

@@ -1,0 +1,53 @@
+// os (macOS, x86-64) - implemented on top of libSystem (the C library is linked by clang).
+// EXPERIMENTAL: written without access to a Mac; run `orb doctor` to check your setup.
+
+extern fn c_write(fd: i64, p: *u8, n: i64) -> i64 = "write";
+extern fn c_read(fd: i64, p: *u8, n: i64) -> i64 = "read";
+extern fn c_open(path: *u8, flags: i64, mode: i64) -> i32 = "open";
+extern fn c_close(fd: i64) -> i32 = "close";
+extern fn c_exit(code: i64) = "exit";
+extern fn c_mmap(addr: i64, len: i64, prot: i64, flags: i64, fd: i64, off: i64) -> i64 = "mmap";
+extern fn c_munmap(p: *u8, len: i64) -> i32 = "munmap";
+
+pub fn init() {}
+
+pub fn write(fd: i64, p: *u8, n: i64) -> i64 {
+    return c_write(fd, p, n);
+}
+
+pub fn read(fd: i64, p: *u8, n: i64) -> i64 {
+    return c_read(fd, p, n);
+}
+
+pub fn open_read(path: *u8) -> i64 {
+    r := c_open(path, 0, 0) as i64;
+    if r < 0 { return -2; }
+    return r;
+}
+
+// O_WRONLY | O_CREAT | O_TRUNC, mode 0644
+pub fn open_write(path: *u8) -> i64 {
+    r := c_open(path, 1537, 420) as i64;
+    if r < 0 { return -1; }
+    return r;
+}
+
+pub fn close(fd: i64) {
+    c_close(fd);
+}
+
+pub fn exit(code: i64) -> never {
+    c_exit(code);
+    loop {}
+}
+
+// PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON
+pub fn alloc(size: i64) -> *u8 {
+    r := c_mmap(0, size, 3, 4098, -1, 0);
+    if r == -1 { return null; }
+    return r as *u8;
+}
+
+pub fn release(p: *u8, size: i64) {
+    c_munmap(p, size);
+}

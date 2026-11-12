@@ -1,0 +1,39 @@
+// Shared helpers for the Orb! Web browser tests.
+use web;
+
+passed: i64 = 0;
+failed: i64 = 0;
+
+pub fn check(name: str, cond: bool) {
+    if cond {
+        passed += 1;
+        println("PASS ", name);
+    } else {
+        failed += 1;
+        println("FAIL ", name);
+    }
+}
+
+pub fn done() {
+    println("DONE passed=", passed, " failed=", failed);
+}
+
+// Numeric code of a web error, so tests can assert on the kind of failure.
+pub const OK = 0;
+pub const BAD_HANDLE = 1;
+pub const NOT_FOUND = 2;
+pub const INVALID = 3;
+pub const SECURITY = 4;
+pub const WRONG_TYPE = 5;
+pub const NETWORK = 6;
+pub const OTHER = 9;
+
+pub fn code(e: i64) -> i64 {
+    if e == (web.BadHandle as i64) { return 1; }
+    if e == (web.NotFound as i64) { return 2; }
+    if e == (web.Invalid as i64) { return 3; }
+    if e == (web.Security as i64) { return 4; }
+    if e == (web.WrongType as i64) { return 5; }
+    if e == (web.Network as i64) { return 6; }
+    return 9;
+}

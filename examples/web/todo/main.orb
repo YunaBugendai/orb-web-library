@@ -1,0 +1,136 @@
+// Todo list: building DOM nodes, event delegation, JSON + localStorage persistence.
+use web;
+use vec;
+use strings;
+
+struct Todo { text: str, done: bool }
+todos: vec.Vec<Todo>;
+list: web.Element;
+input: web.Element;
+
+fn save() -> ! {
+    arr := try web.json_array();
+    for t in todos.items() {
+        o := try web.json_object();
+        s := try web.json_from_str(t.text);
+        d := try web.json_from_bool(t.done);
+        try web.json_set(o, "text", s);
+        try web.json_set(o, "done", d);
+        try web.json_push(arr, o);
+        web.json_release(s);
+        web.json_release(d);
+        web.json_release(o);
+    }
+    text := try web.json_stringify(arr);
+    try web.local_set("orb-todos", text);
+    web.free_str(text);
+    web.json_release(arr);
+    return;
+}
+
+fn load() -> ! {
+    text := try web.local_get("orb-todos");
+    arr := try web.json_parse(text);
+    web.free_str(text);
+    n := try web.json_len(arr);
+    for i in 0..n {
+        o := try web.json_at(arr, i);
+        tj := try web.json_get(o, "text");
+        dj := try web.json_get(o, "done");
+        todos.push(Todo{ text: try web.json_str(tj), done: try web.json_bool(dj) });
+        web.json_release(tj);
+        web.json_release(dj);
+        web.json_release(o);
+    }
+    web.json_release(arr);
+    return;
+}
+
+fn render() -> ! {
+    try web.clear(list);
+    left := 0;
+    for i, t in todos.items() {
+        li := try web.create("li");
+        label := try web.create("span");
+        try web.set_text(label, t.text);
+        idx := strings.from_i64(i);
+        try web.set_attr(label, "data-toggle", idx);
+        if t.done { try web.add_class(label, "done"); } else { left += 1; }
+        del := try web.create("button");
+        try web.set_text(del, "x");
+        try web.set_attr(del, "data-delete", idx);
+        free(idx.ptr);
+        try web.append(li, label);
+        try web.append(li, del);
+        try web.append(list, li);
+        web.release(label);
+        web.release(del);
+        web.release(li);
+    }
+    ls := strings.from_i64(left);
+    msg := strings.concat(ls, " item(s) left");
+    try web.set_text_by_id("left", msg);
+    free(ls.ptr);
+    free(msg.ptr);
+    return;
+}
+
+fn refresh() {
+    save() catch |e| { web.warn("could not save the list"); };
+    render() catch |e| { web.log_error("could not draw the list"); };
+}
+
+fn index_of(el: web.Element, attr: str) -> i64 {
+    s := web.get_attr(el, attr) catch |e| { return -1; };
+    n := strings.parse_i64(s) catch -1;
+    web.free_str(s);
+    return n;
+}
+
+fn on_list_click(ev: web.Event) {
+    tgt := web.target(ev) catch |e| { return; };
+    del := index_of(tgt, "data-delete");
+    tog := index_of(tgt, "data-toggle");
+    web.release(tgt);
+    if del >= 0 && del < todos.len {
+        free(todos.data[del].text.ptr);
+        j := del;
+        while j + 1 < todos.len {
+            todos.data[j] = todos.data[j + 1];
+            j += 1;
+        }
+        todos.len -= 1;
+        refresh();
+    } else if tog >= 0 && tog < todos.len {
+        todos.data[tog].done = !todos.data[tog].done;
+        refresh();
+    }
+}
+
+fn on_submit(ev: web.Event) {
+    web.prevent_default(ev) catch |e| {};
+    text := web.get_value(input) catch |e| { return; };
+    t := strings.trim(text);
+    if t.len == 0 {
+        web.free_str(text);
+        return;
+    }
+    todos.push(Todo{ text: text, done: false });
+    web.set_value(input, "") catch |e| {};
+    refresh();
+}
+
+fn setup() -> ! {
+    list = try web.get_element("list");
+    input = try web.get_element("new");
+    form := try web.get_element("form");
+    try web.on_submit(form, on_submit);
+    try web.on(list, "click", on_list_click);
+    load() catch |e| {};            // nothing saved yet is fine
+    try render();
+    return;
+}
+
+fn main() {
+    setup() catch |e| { web.log_error("todo: setup failed"); };
+}

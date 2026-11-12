@@ -1,3 +1,4 @@
 // expect: error: Failed
+// exit: 1
 error Failed;
 fn main() -> ! { fail Failed; }

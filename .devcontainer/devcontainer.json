@@ -1,0 +1,11 @@
+{
+  "name": "Orb! (Linux x86-64)",
+  "build": { "dockerfile": "Dockerfile" },
+  "runArgs": ["--platform=linux/amd64"],
+  "postCreateCommand": "make && sudo make install && orb doctor",
+  "customizations": {
+    "vscode": {
+      "settings": { "orb.path": "/usr/local/bin/orb", "orb.mode": "native", "files.associations": { "*.orb": "orb" } }
+    }
+  }
+}

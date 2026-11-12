@@ -1,0 +1,20 @@
+extern fn host_log(p: *u8, n: i32) = "env.log";
+extern fn host_scale(x: f64, k: i32) -> f64 = "env.scale";
+extern fn host_pair(a: i32) -> str = "env.pair";
+
+pub fn add(a: i64, b: i64) -> i64 { return a + b; }
+pub fn mul_f(a: f64, b: f64) -> f64 { return a * b; }
+pub fn len_of(s: str) -> i64 { return s.len; }
+pub fn small(a: i32, b: u8) -> i32 { return a + (b as i32); }
+
+fn twice(x: i64) -> i64 { return x * 2; }
+fn apply(f: fn(i64) -> i64, v: i64) -> i64 { return f(v); }
+
+fn main() {
+    println("apply=", apply(twice, 21));
+    println("scale=", host_scale(1.5, 4));
+    s := host_pair(7);
+    println("pair=", s);
+    msg := "raw log";
+    host_log(msg.ptr, msg.len as i32);
+}

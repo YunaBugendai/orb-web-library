@@ -17,6 +17,16 @@ enum { LK_NONE, LK_GPR, LK_XMM, LK_STACK };
 typedef struct { int kind, r, off; } Loc;
 
 static FILE *out;
+
+// Symbol / label naming per object format (Mach-O prefixes globals with '_' and uses 'L' for local labels).
+static const char *sy(const char *n) {
+    if (g_target == TGT_MACOS) {
+        if (n[0] == '.' && n[1] == 'L') return xsprintf("L%s", n + 2);
+        return xsprintf("_%s", n);
+    }
+    return n;
+}
+static const char *lp(void) { return g_target == TGT_MACOS ? "L" : ".L"; }
 static FnIR *ir;
 static Loc *loc;
 static int fid;
@@ -244,7 +254,7 @@ static bool fits32(int64_t v) { return v >= INT32_MIN && v <= INT32_MAX; }
 static char *stack_str(int v) { return xsprintf("%d(%%rbp)", slot_off[ir->slots.n + loc[v].off]); }
 static int sym_used_id(Opnd o) { return (int)o.v; }
 
-static void lea_glob(Opnd o, int reg) { E("leaq %s(%%rip), %s", g_isyms.d[sym_used_id(o)].name, R64[reg]); }
+static void lea_glob(Opnd o, int reg) { E("leaq %s(%%rip), %s", sy(g_isyms.d[sym_used_id(o)].name), R64[reg]); }
 
 static void mov_to_gpr(Opnd o, int reg) {
     switch (o.k) {
@@ -330,7 +340,7 @@ static const char *mem_str(Ins *i) {
     char *s;
     if (base.k == O_GLOB) {
         if (idx.k == O_REG) { lea_glob(base, RCX); s = xsprintf("%lld(%s", (long long)off, R64[RCX]); }
-        else return xsprintf("%s%+lld(%%rip)", g_isyms.d[base.v].name, (long long)off);
+        else return xsprintf("%s%+lld(%%rip)", sy(g_isyms.d[base.v].name), (long long)off);
     } else if (base.k == O_SLOT) {
         s = xsprintf("%lld(%%rbp", (long long)(off + slot_off[base.v]));
     } else {
@@ -564,7 +574,28 @@ static void push_opnd(Opnd o) {
     E("pushq %%rax");
 }
 
+static void emit_call_win64(Ins *i) {
+    // Microsoft x64: rcx, rdx, r8, r9, then the stack; 32 bytes of shadow space; rsp 16-aligned at the call.
+    int n = i->nargs;
+    int nstack = n > 4 ? n - 4 : 0;
+    int total = (32 + 8 * nstack + 15) / 16 * 16;
+    E("subq $%d, %%rsp", total);
+    for (int k = 4; k < n; k++) {
+        mov_to_gpr(i->args[k], RAX);
+        E("movq %%rax, %d(%%rsp)", 32 + 8 * (k - 4));
+    }
+    static const int wregs[4] = { RCX, RDX, R8, R9 };
+    PM pm[4]; int np = 0;
+    for (int k = 0; k < n && k < 4; k++) { pm[np].dst = wregs[k]; pm[np].src = i->args[k]; pm[np].done = false; np++; }
+    parallel_move(pm, np, RAX);
+    E("call %s", sy(g_isyms.d[i->a.v].name));
+    E("addq $%d, %%rsp", total);
+    if (i->dst >= 0) store_gpr(RAX, i->dst);
+    if (i->dst2 >= 0) store_gpr(RDX, i->dst2);
+}
+
 static void emit_call(Ins *i) {
+    if (i->a.k == O_GLOB && g_isyms.d[i->a.v].kind == IS_FUNC && g_isyms.d[i->a.v].func->winabi) { emit_call_win64(i); return; }
     int n = i->nargs;
     int nstack = n > 6 ? n - 6 : 0;
     int pad = nstack & 1;
@@ -577,7 +608,7 @@ static void emit_call(Ins *i) {
     if (indirect) { pm[np].dst = R11; pm[np].src = i->a; pm[np].done = false; np++; }
     parallel_move(pm, np, RAX);
     if (indirect) E("call *%%r11");
-    else E("call %s", g_isyms.d[i->a.v].name);
+    else E("call %s", sy(g_isyms.d[i->a.v].name));
     if (nstack + pad) E("addq $%d, %%rsp", (nstack + pad) * 8);
     if (i->dst >= 0) store_gpr(RAX, i->dst);
     if (i->dst2 >= 0) store_gpr(RDX, i->dst2);
@@ -662,21 +693,21 @@ static void emit_params(int np) {
 static void emit_ret(Ins *i, bool last) {
     if (i->a.k != O_NONE) mov_to_gpr(i->a, RAX);
     if (i->b.k != O_NONE) mov_to_gpr(i->b, RDX);
-    if (!last) E("jmp .Lret%d", fid);
+    if (!last) E("jmp %sret%d", lp(), fid);
 }
 
 static void emit_ins(Ins *i, int idx, int total) {
     switch (i->op) {
     case OP_NOP: case OP_PARAM: break;
-    case OP_LABEL: fprintf(out, ".L%d_%d:\n", fid, i->label); break;
+    case OP_LABEL: fprintf(out, "%s%d_%d:\n", lp(), fid, i->label); break;
     case OP_JMP:
         // skip jumps to the immediately following label
         if (idx + 1 < total && ir->ins.d[idx + 1].op == OP_LABEL && ir->ins.d[idx + 1].label == i->label) break;
-        E("jmp .L%d_%d", fid, i->label);
+        E("jmp %s%d_%d", lp(), fid, i->label);
         break;
     case OP_JCC:
         emit_cmp(i->a, i->b);
-        E("j%s .L%d_%d", CCN[i->cc], fid, i->label);
+        E("j%s %s%d_%d", CCN[i->cc], lp(), fid, i->label);
         break;
     case OP_MOV: emit_mov(i); break;
     case OP_FCONST: {
@@ -822,7 +853,7 @@ static void emit_function(FnIR *f, int id) {
     int total = (cur + 15) / 16 * 16;
     int frame = total - 8 * nsaved;
 
-    fprintf(out, "\n.globl %s\n%s:\n", f->name, f->name);
+    fprintf(out, "\n.globl %s\n%s:\n", sy(f->name), sy(f->name));
     E("pushq %%rbp");
     E("movq %%rsp, %%rbp");
     for (int k = 0; k < nsaved; k++) E("pushq %s", R64[saved_regs[k]]);
@@ -831,7 +862,7 @@ static void emit_function(FnIR *f, int id) {
     while (np < f->ins.n && f->ins.d[np].op == OP_PARAM) np++;
     emit_params(np);
     for (int k = np; k < f->ins.n; k++) emit_ins(&f->ins.d[k], k, f->ins.n);
-    fprintf(out, ".Lret%d:\n", id);
+    fprintf(out, "%sret%d:\n", lp(), id);
     if (nsaved) E("leaq -%d(%%rbp), %%rsp", 8 * nsaved);
     for (int k = nsaved - 1; k >= 0; k--) E("popq %s", R64[saved_regs[k]]);
     if (!nsaved) E("movq %%rbp, %%rsp");
@@ -857,16 +888,19 @@ static void emit_global(ISym *s) {
     ConstVal *cv = &g->cv;
     bool zero = cv->kind == 0 || cv->kind == 5 || (cv->kind == 1 && cv->i == 0) || (cv->kind == 3 && cv->i == 0) || (cv->kind == 2 && cv->f == 0.0 && !signbit(cv->f));
     if (zero) {
-        fprintf(out, ".bss\n.balign %d\n%s:\n\t.zero %d\n", al < 16 ? al : 16, s->name, size);
+        if (g_target == TGT_MACOS) {
+            int lg = 0; while ((1 << lg) < (al < 16 ? al : 16)) lg++;
+            fprintf(out, ".zerofill __DATA,__bss,%s,%d,%d\n", sy(s->name), size, lg);
+        } else fprintf(out, ".bss\n.balign %d\n%s:\n\t.zero %d\n", al < 16 ? al : 16, s->name, size);
         return;
     }
-    fprintf(out, ".data\n.balign %d\n%s:\n", al < 16 ? al : 16, s->name);
+    fprintf(out, ".data\n.balign %d\n%s:\n", al < 16 ? al : 16, sy(s->name));
     if (cv->kind == 4) {
         int id = -1;
         for (int k = 0; k < g_isyms.n; k++)
             if (g_isyms.d[k].kind == IS_STR && g_isyms.d[k].len == cv->slen && !memcmp(g_isyms.d[k].bytes, cv->s, (size_t)cv->slen)) { id = k; break; }
         if (id < 0) die("internal error: string constant for global '%s' was not interned", g->name);
-        fprintf(out, "\t.quad %s\n\t.quad %d\n", g_isyms.d[id].name, cv->slen);
+        fprintf(out, "\t.quad %s\n\t.quad %d\n", sy(g_isyms.d[id].name), cv->slen);
     } else if (cv->kind == 2) {
         double d = cv->f; int64_t bits; memcpy(&bits, &d, 8);
         fprintf(out, "\t.quad %lld\n", (long long)bits);
@@ -908,29 +942,47 @@ void regalloc_and_emit(FILE *o) {
     fprintf(out, "\t.text\n");
     // entry point
     Type *mr = g_prog.main_fn->type->ret;
-    fprintf(out, ".globl _start\n_start:\n");
-    E("xorl %%ebp, %%ebp");
-    E("movq (%%rsp), %%rdi");
-    E("leaq 8(%%rsp), %%rsi");
-    E("andq $-16, %%rsp");
-    E("call %s", core_sym("rt_init")->func->asm_name);
-    E("call %s", g_prog.main_fn->asm_name);
-    if (mr->kind == TY_I64) { E("movq %%rax, %%rdi"); E("call %s", core_sym("rt_exit")->func->asm_name); }
-    else if (mr->kind == TY_ERRUNION) { E("movq %%rax, %%rdi"); E("call %s", core_sym("rt_main_err")->func->asm_name); }
-    else { E("xorl %%edi, %%edi"); E("call %s", core_sym("rt_exit")->func->asm_name); }
+    const char *f_init = core_sym("rt_init")->func->asm_name, *f_exit = core_sym("rt_exit")->func->asm_name,
+               *f_err = core_sym("rt_main_err")->func->asm_name;
+    if (g_target == TGT_LINUX) {
+        fprintf(out, ".globl _start\n_start:\n");
+        E("xorl %%ebp, %%ebp");
+        E("movq (%%rsp), %%rdi");
+        E("leaq 8(%%rsp), %%rsi");
+        E("andq $-16, %%rsp");
+    } else if (g_target == TGT_MACOS) {
+        fprintf(out, ".globl _main\n_main:\n");
+        E("pushq %%rbp");
+        E("movq %%rsp, %%rbp");
+    } else {
+        fprintf(out, ".globl main\nmain:\n");
+        E("pushq %%rbp");
+        E("movq %%rsp, %%rbp");
+        E("movq %%rcx, %%rdi");      // Win64: argc in ecx, argv in rdx
+        E("movq %%rdx, %%rsi");
+    }
+    E("call %s", sy(f_init));
+    E("call %s", sy(g_prog.main_fn->asm_name));
+    if (mr->kind == TY_I64) { E("movq %%rax, %%rdi"); E("call %s", sy(f_exit)); }
+    else if (mr->kind == TY_ERRUNION) { E("movq %%rax, %%rdi"); E("call %s", sy(f_err)); }
+    else { E("xorl %%edi, %%edi"); E("call %s", sy(f_exit)); }
     E("ud2");
     for (int w = 0; w < work.n; w++) emit_function(work.d[w], w);
     // read-only data
-    fprintf(out, "\n\t.section .rodata\n");
+    if (g_target == TGT_MACOS) fprintf(out, "\n\t.section __TEXT,__const\n");
+    else if (g_target == TGT_WINDOWS) fprintf(out, "\n\t.section .rdata,\"dr\"\n");
+    else fprintf(out, "\n\t.section .rodata\n");
     for (int i = 0; i < g_isyms.n; i++) {
         ISym *s = &g_isyms.d[i];
-        if (s->kind == IS_STR && (s->used || true)) { fprintf(out, "%s:\n", s->name); data_bytes(s->bytes, s->len); }
+        if (s->kind == IS_STR) { fprintf(out, "%s:\n", sy(s->name)); data_bytes(s->bytes, s->len); }
     }
-    // error name table
-    fprintf(out, "\t.balign 8\norb_errtab:\n\t.quad .Lerrunk\n\t.quad 1\n");
-    for (int i = 0; i < g_prog.errors.n; i++) fprintf(out, "\t.quad .Lerr%d\n\t.quad %d\n", i, (int)strlen(g_prog.errors.d[i]->name));
-    fprintf(out, ".Lerrunk:\n\t.ascii \"?\"\n");
-    for (int i = 0; i < g_prog.errors.n; i++) fprintf(out, ".Lerr%d:\n\t.ascii \"%s\"\n", i, g_prog.errors.d[i]->name);
+    // error name table (contains pointers, so it lives in writable data on Mach-O)
+    if (g_target == TGT_MACOS) fprintf(out, "\t.data\n");
+    const char *L = lp();
+    fprintf(out, "\t.balign 8\n%s:\n\t.quad %serrunk\n\t.quad 1\n", sy("orb_errtab"), L);
+    for (int i = 0; i < g_prog.errors.n; i++) fprintf(out, "\t.quad %serr%d\n\t.quad %d\n", L, i, (int)strlen(g_prog.errors.d[i]->name));
+    fprintf(out, "%serrunk:\n\t.ascii \"?\"\n", L);
+    for (int i = 0; i < g_prog.errors.n; i++) fprintf(out, "%serr%d:\n\t.ascii \"%s\"\n", L, i, g_prog.errors.d[i]->name);
     for (int i = 0; i < g_isyms.n; i++) if (g_isyms.d[i].kind == IS_DATA) emit_global(&g_isyms.d[i]);
-    fprintf(out, "\n\t.section .note.GNU-stack,\"\",@progbits\n");
+    if (g_target == TGT_LINUX) fprintf(out, "\n\t.section .note.GNU-stack,\"\",@progbits\n");
 }

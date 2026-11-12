@@ -1,0 +1,9 @@
+// expect: stack overflow
+fn recurse(n: i64) -> i64 {
+    pad: [64]i64;
+    pad[0] = n;
+    return recurse(n + 1) + pad[0];
+}
+fn main() {
+    println(recurse(0));
+}

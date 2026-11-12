@@ -1,0 +1,839 @@
+// web - Orb! Web: browser integration for programs compiled with `orb build --target wasm`.
+//
+//   use web;
+//
+//   fn main() {
+//       button := web.get_element("go") catch |e| { return; };
+//       web.on_click(button, on_go) catch |e| { return; };
+//   }
+//   fn on_go() { web.set_text_by_id("out", "Hello from Orb!") catch |e| {}; }
+//
+// HTML and CSS stay in the page; this module only talks to the DOM and the browser through the small
+// JavaScript runtime web/orb.js. Everything that can fail returns an error union (`T!` or `!`).
+//
+// Ownership rules
+//   * `str` results of this module are heap-allocated: release them with `web.free_str(s)`.
+//   * Element handles are reference counted by the runtime: asking for the same element twice gives the
+//     same handle; call `web.release(el)` for every handle you no longer need (singletons may be kept).
+//   * Event and Response handles are valid only inside the callback that receives them.
+//   * Json handles are owned by you: call `web.json_release(j)` when done.
+//
+// Synchronous: everything except `fetch` and the timers. Asynchronous: `fetch`, `set_timeout`,
+// `set_interval` and event callbacks - they return at once and call your `fn` later, on the browser's
+// event loop, one callback at a time.
+
+use vec;
+
+pub error BadHandle, NotFound, Invalid, Security, WrongType, Network, Unsupported;
+
+// ---------------------------------------------------------------- host imports (module "orb_web")
+extern fn h_release(h: i32) -> i32 = "orb_web.release";
+extern fn h_get_element(p: *u8, n: i32) -> i32 = "orb_web.get_element";
+extern fn h_query(p: *u8, n: i32) -> i32 = "orb_web.query";
+extern fn h_query_all(p: *u8, n: i32) -> i32 = "orb_web.query_all";
+extern fn h_take_nodes(dst: *u8, count: i32) -> i32 = "orb_web.take_nodes";
+extern fn h_body() -> i32 = "orb_web.body";
+extern fn h_document() -> i32 = "orb_web.document";
+extern fn h_window() -> i32 = "orb_web.window";
+extern fn h_create(p: *u8, n: i32) -> i32 = "orb_web.create";
+extern fn h_create_text(p: *u8, n: i32) -> i32 = "orb_web.create_text";
+extern fn h_append(parent: i32, child: i32) -> i32 = "orb_web.append";
+extern fn h_remove(h: i32) -> i32 = "orb_web.remove";
+extern fn h_clear(h: i32) -> i32 = "orb_web.clear";
+extern fn h_focus(h: i32) -> i32 = "orb_web.focus";
+extern fn h_get_text(h: i32) -> i32 = "orb_web.get_text";
+extern fn h_set_text(h: i32, p: *u8, n: i32) -> i32 = "orb_web.set_text";
+extern fn h_get_html(h: i32) -> i32 = "orb_web.get_html";
+extern fn h_set_html(h: i32, p: *u8, n: i32) -> i32 = "orb_web.set_html";
+extern fn h_get_attr(h: i32, p: *u8, n: i32) -> i32 = "orb_web.get_attr";
+extern fn h_set_attr(h: i32, p: *u8, n: i32, vp: *u8, vn: i32) -> i32 = "orb_web.set_attr";
+extern fn h_remove_attr(h: i32, p: *u8, n: i32) -> i32 = "orb_web.remove_attr";
+extern fn h_has_attr(h: i32, p: *u8, n: i32) -> i32 = "orb_web.has_attr";
+extern fn h_class_op(h: i32, op: i32, p: *u8, n: i32) -> i32 = "orb_web.class_op";
+extern fn h_get_prop_str(h: i32, p: *u8, n: i32) -> i32 = "orb_web.get_prop_str";
+extern fn h_set_prop_str(h: i32, p: *u8, n: i32, vp: *u8, vn: i32) -> i32 = "orb_web.set_prop_str";
+extern fn h_get_prop_num(h: i32, p: *u8, n: i32, out: *u8) -> i32 = "orb_web.get_prop_num";
+extern fn h_set_prop_num(h: i32, p: *u8, n: i32, x: f64) -> i32 = "orb_web.set_prop_num";
+extern fn h_get_prop_bool(h: i32, p: *u8, n: i32) -> i32 = "orb_web.get_prop_bool";
+extern fn h_set_prop_bool(h: i32, p: *u8, n: i32, v: i32) -> i32 = "orb_web.set_prop_bool";
+extern fn h_set_style(h: i32, p: *u8, n: i32, vp: *u8, vn: i32) -> i32 = "orb_web.set_style";
+extern fn h_listen(h: i32, p: *u8, n: i32, cb: i32) -> i32 = "orb_web.listen";
+extern fn h_unlisten(id: i32) -> i32 = "orb_web.unlisten";
+extern fn h_ev_str(h: i32, field: i32) -> i32 = "orb_web.ev_str";
+extern fn h_ev_int(h: i32, field: i32) -> i32 = "orb_web.ev_int";
+extern fn h_ev_target(h: i32) -> i32 = "orb_web.ev_target";
+extern fn h_ev_prevent(h: i32) -> i32 = "orb_web.ev_prevent";
+extern fn h_ev_stop(h: i32) -> i32 = "orb_web.ev_stop";
+extern fn h_dispatch_event(h: i32, p: *u8, n: i32) -> i32 = "orb_web.dispatch_event";
+extern fn h_set_timer(ms: f64, repeat: i32, cb: i32) -> i32 = "orb_web.set_timer";
+extern fn h_clear_timer(id: i32) -> i32 = "orb_web.clear_timer";
+extern fn h_now() -> f64 = "orb_web.now";
+extern fn h_random() -> f64 = "orb_web.random";
+extern fn h_console(level: i32, p: *u8, n: i32) -> i32 = "orb_web.console";
+extern fn h_store_get(kind: i32, p: *u8, n: i32) -> i32 = "orb_web.store_get";
+extern fn h_store_set(kind: i32, p: *u8, n: i32, vp: *u8, vn: i32) -> i32 = "orb_web.store_set";
+extern fn h_store_remove(kind: i32, p: *u8, n: i32) -> i32 = "orb_web.store_remove";
+extern fn h_store_clear(kind: i32) -> i32 = "orb_web.store_clear";
+extern fn h_store_len(kind: i32) -> i32 = "orb_web.store_len";
+extern fn h_store_key(kind: i32, i: i32) -> i32 = "orb_web.store_key";
+extern fn h_loc_get(which: i32) -> i32 = "orb_web.loc_get";
+extern fn h_loc_param(p: *u8, n: i32) -> i32 = "orb_web.loc_param";
+extern fn h_loc_set_hash(p: *u8, n: i32) -> i32 = "orb_web.loc_set_hash";
+extern fn h_loc_navigate(p: *u8, n: i32) -> i32 = "orb_web.loc_navigate";
+extern fn h_loc_reload() -> i32 = "orb_web.loc_reload";
+extern fn h_fetch(up: *u8, un: i32, mp: *u8, mn: i32, bp: *u8, bn: i32, cp: *u8, cn: i32, cb: i32) -> i32 = "orb_web.fetch";
+extern fn h_res_info(h: i32, field: i32) -> i32 = "orb_web.res_info";
+extern fn h_res_read(h: i32, dst: *u8, cap: i32) -> i32 = "orb_web.res_read";
+extern fn h_res_header(h: i32, p: *u8, n: i32) -> i32 = "orb_web.res_header";
+extern fn h_json_parse(p: *u8, n: i32) -> i32 = "orb_web.json_parse";
+extern fn h_json_kind(h: i32) -> i32 = "orb_web.json_kind";
+extern fn h_json_len(h: i32) -> i32 = "orb_web.json_len";
+extern fn h_json_get(h: i32, p: *u8, n: i32) -> i32 = "orb_web.json_get";
+extern fn h_json_at(h: i32, i: i32) -> i32 = "orb_web.json_at";
+extern fn h_json_key_at(h: i32, i: i32) -> i32 = "orb_web.json_key_at";
+extern fn h_json_str(h: i32) -> i32 = "orb_web.json_str";
+extern fn h_json_num(h: i32, out: *u8) -> i32 = "orb_web.json_num";
+extern fn h_json_bool(h: i32) -> i32 = "orb_web.json_bool";
+extern fn h_json_stringify(h: i32) -> i32 = "orb_web.json_stringify";
+extern fn h_json_new(kind: i32) -> i32 = "orb_web.json_new";
+extern fn h_json_from_num(x: f64) -> i32 = "orb_web.json_from_num";
+extern fn h_json_from_str(p: *u8, n: i32) -> i32 = "orb_web.json_from_str";
+extern fn h_json_from_bool(b: i32) -> i32 = "orb_web.json_from_bool";
+extern fn h_json_set(h: i32, p: *u8, n: i32, child: i32) -> i32 = "orb_web.json_set";
+extern fn h_json_push(h: i32, child: i32) -> i32 = "orb_web.json_push";
+extern fn h_take(dst: *u8, n: i32) -> i32 = "orb_web.take";
+
+// ---------------------------------------------------------------- handle types
+pub struct Element { h: i32 }
+pub struct Event { h: i32 }
+pub struct Response { h: i32 }
+pub struct Json { h: i32 }
+pub struct Listener { id: i32, cb: i32 }
+pub struct Timer { id: i32, cb: i32 }
+
+// ---------------------------------------------------------------- internals
+// Host functions return >= 0 on success and a negative code on failure.
+fn check(c: i32) -> ! {
+    if c >= 0 { return; }
+    if c == -1 { fail BadHandle; }
+    if c == -2 { fail NotFound; }
+    if c == -4 { fail Security; }
+    if c == -5 { fail WrongType; }
+    if c == -6 { fail Network; }
+    if c == -7 { fail Unsupported; }
+    fail Invalid;
+}
+
+// The host staged a string of n bytes: copy it into fresh memory.
+fn finish_str(n: i32) -> str! {
+    try check(n);
+    buf := make(u8, n as i64 + 1);
+    r := h_take(buf.ptr, n);
+    try check(r);
+    return str_from(buf.ptr, n as i64);
+}
+
+// Releases a string returned by this module.
+pub fn free_str(s: str) {
+    free(s.ptr);
+}
+
+// ---- callback registry: Orb! has function pointers but no closures, so callbacks are kept here and the
+// host calls export_dispatch(id, arg).  kind: 0 free slot, 1 fn(), 2 fn(Event), 3 fn(Response)
+struct Cb { kind: i64, once: bool, f0: fn(), f1: fn(Event), f2: fn(Response) }
+cbs: vec.Vec<Cb>;
+
+fn cb_add(c: Cb) -> i32 {
+    i := 0;
+    while i < cbs.len {
+        if cbs.data[i].kind == 0 {
+            cbs.data[i] = c;
+            return i as i32;
+        }
+        i += 1;
+    }
+    cbs.push(c);
+    return (cbs.len - 1) as i32;
+}
+
+fn cb_free(id: i32) {
+    if id >= 0 && (id as i64) < cbs.len { cbs.data[id as i64].kind = 0; }
+}
+
+// Number of callbacks that are currently registered (useful in tests).
+pub fn live_callbacks() -> i64 {
+    n := 0;
+    i := 0;
+    while i < cbs.len {
+        if cbs.data[i].kind != 0 { n += 1; }
+        i += 1;
+    }
+    return n;
+}
+
+// Entry point used by web/orb.js; not for application code.
+pub fn export_dispatch(id: i32, arg: i32) {
+    if id < 0 || (id as i64) >= cbs.len { return; }
+    c := cbs.data[id as i64];
+    if c.kind == 0 { return; }
+    if c.once { cbs.data[id as i64].kind = 0; }
+    if c.kind == 1 {
+        f := c.f0;
+        f();
+    } else if c.kind == 2 {
+        f := c.f1;
+        f(Event{ h: arg });
+    } else if c.kind == 3 {
+        f := c.f2;
+        f(Response{ h: arg });
+    }
+}
+
+pub fn export_flush() {
+    flush();
+}
+
+// Lets the host (and tests) allocate and release memory in the Orb! heap.
+pub fn export_alloc(n: i32) -> *u8 {
+    return mem_alloc(n as i64);
+}
+
+pub fn export_free(p: *u8) {
+    mem_free(p);
+}
+
+// ---------------------------------------------------------------- DOM: lookup and handles
+// Returns the element with that id attribute.
+pub fn get_element(id: str) -> Element! {
+    h := h_get_element(id.ptr, id.len as i32);
+    try check(h);
+    return Element{ h: h };
+}
+
+// Returns the first element matching a CSS selector (Invalid if the selector is malformed).
+pub fn query(selector: str) -> Element! {
+    h := h_query(selector.ptr, selector.len as i32);
+    try check(h);
+    return Element{ h: h };
+}
+
+// Returns every element matching a CSS selector. Release the slice with free() and each element
+// with release().
+pub fn query_all(selector: str) -> []Element! {
+    n := h_query_all(selector.ptr, selector.len as i32);
+    try check(n);
+    out := make(Element, n as i64);
+    if n > 0 {
+        r := h_take_nodes(out.ptr as *u8, n);
+        try check(r);
+    }
+    return out;
+}
+
+pub fn body() -> Element! {
+    h := h_body();
+    try check(h);
+    return Element{ h: h };
+}
+
+// The document (for listening to keyboard events anywhere on the page).
+pub fn document() -> Element! {
+    h := h_document();
+    try check(h);
+    return Element{ h: h };
+}
+
+pub fn window() -> Element! {
+    h := h_window();
+    try check(h);
+    return Element{ h: h };
+}
+
+pub fn release(el: Element) {
+    h_release(el.h);
+}
+
+// ---------------------------------------------------------------- DOM: structure
+pub fn create(tag: str) -> Element! {
+    h := h_create(tag.ptr, tag.len as i32);
+    try check(h);
+    return Element{ h: h };
+}
+
+pub fn create_text(text: str) -> Element! {
+    h := h_create_text(text.ptr, text.len as i32);
+    try check(h);
+    return Element{ h: h };
+}
+
+pub fn append(parent: Element, child: Element) -> ! {
+    try check(h_append(parent.h, child.h));
+    return;
+}
+
+// Removes the element from the document (the handle stays valid until released).
+pub fn remove(el: Element) -> ! {
+    try check(h_remove(el.h));
+    return;
+}
+
+// Removes all children.
+pub fn clear(el: Element) -> ! {
+    try check(h_clear(el.h));
+    return;
+}
+
+pub fn focus(el: Element) -> ! {
+    try check(h_focus(el.h));
+    return;
+}
+
+// ---------------------------------------------------------------- DOM: text, html, attributes
+pub fn get_text(el: Element) -> str! {
+    return finish_str(h_get_text(el.h));
+}
+
+pub fn set_text(el: Element, text: str) -> ! {
+    try check(h_set_text(el.h, text.ptr, text.len as i32));
+    return;
+}
+
+// Convenience: set_text on the element with this id.
+pub fn set_text_by_id(id: str, text: str) -> ! {
+    el := try get_element(id);
+    r := set_text(el, text);
+    release(el);
+    return r;
+}
+
+// innerHTML. Never pass untrusted text here (it is parsed as HTML); use set_text instead.
+pub fn get_html(el: Element) -> str! {
+    return finish_str(h_get_html(el.h));
+}
+
+pub fn set_html(el: Element, html: str) -> ! {
+    try check(h_set_html(el.h, html.ptr, html.len as i32));
+    return;
+}
+
+// NotFound if the attribute is absent.
+pub fn get_attr(el: Element, name: str) -> str! {
+    return finish_str(h_get_attr(el.h, name.ptr, name.len as i32));
+}
+
+pub fn set_attr(el: Element, name: str, value: str) -> ! {
+    try check(h_set_attr(el.h, name.ptr, name.len as i32, value.ptr, value.len as i32));
+    return;
+}
+
+pub fn remove_attr(el: Element, name: str) -> ! {
+    try check(h_remove_attr(el.h, name.ptr, name.len as i32));
+    return;
+}
+
+pub fn has_attr(el: Element, name: str) -> bool! {
+    r := h_has_attr(el.h, name.ptr, name.len as i32);
+    try check(r);
+    return r == 1;
+}
+
+// ---------------------------------------------------------------- DOM: CSS classes and style
+pub fn add_class(el: Element, name: str) -> ! {
+    try check(h_class_op(el.h, 0, name.ptr, name.len as i32));
+    return;
+}
+
+pub fn remove_class(el: Element, name: str) -> ! {
+    try check(h_class_op(el.h, 1, name.ptr, name.len as i32));
+    return;
+}
+
+// Adds the class if it is missing, removes it otherwise; returns whether it is present afterwards.
+pub fn toggle_class(el: Element, name: str) -> bool! {
+    r := h_class_op(el.h, 2, name.ptr, name.len as i32);
+    try check(r);
+    return r == 1;
+}
+
+pub fn has_class(el: Element, name: str) -> bool! {
+    r := h_class_op(el.h, 3, name.ptr, name.len as i32);
+    try check(r);
+    return r == 1;
+}
+
+pub fn set_style(el: Element, property: str, value: str) -> ! {
+    try check(h_set_style(el.h, property.ptr, property.len as i32, value.ptr, value.len as i32));
+    return;
+}
+
+// ---------------------------------------------------------------- DOM: properties (el.value, el.checked, ...)
+// WrongType if the property has another type, NotFound if it does not exist.
+pub fn get_prop_str(el: Element, name: str) -> str! {
+    return finish_str(h_get_prop_str(el.h, name.ptr, name.len as i32));
+}
+
+pub fn set_prop_str(el: Element, name: str, value: str) -> ! {
+    try check(h_set_prop_str(el.h, name.ptr, name.len as i32, value.ptr, value.len as i32));
+    return;
+}
+
+pub fn get_prop_num(el: Element, name: str) -> f64! {
+    x: f64 = 0.0;
+    try check(h_get_prop_num(el.h, name.ptr, name.len as i32, &x as *u8));
+    return x;
+}
+
+pub fn set_prop_num(el: Element, name: str, value: f64) -> ! {
+    try check(h_set_prop_num(el.h, name.ptr, name.len as i32, value));
+    return;
+}
+
+pub fn get_prop_bool(el: Element, name: str) -> bool! {
+    r := h_get_prop_bool(el.h, name.ptr, name.len as i32);
+    try check(r);
+    return r == 1;
+}
+
+pub fn set_prop_bool(el: Element, name: str, value: bool) -> ! {
+    v: i32 = 0;
+    if value { v = 1; }
+    try check(h_set_prop_bool(el.h, name.ptr, name.len as i32, v));
+    return;
+}
+
+// Shortcuts for form controls.
+pub fn get_value(el: Element) -> str! {
+    return get_prop_str(el, "value");
+}
+
+pub fn set_value(el: Element, value: str) -> ! {
+    return set_prop_str(el, "value", value);
+}
+
+pub fn is_checked(el: Element) -> bool! {
+    return get_prop_bool(el, "checked");
+}
+
+pub fn set_checked(el: Element, value: bool) -> ! {
+    return set_prop_bool(el, "checked", value);
+}
+
+// ---------------------------------------------------------------- events
+fn listen_kind(el: Element, name: str, c: Cb) -> Listener! {
+    id := cb_add(c);
+    l := h_listen(el.h, name.ptr, name.len as i32, id);
+    if l < 0 {
+        cb_free(id);
+        try check(l);
+    }
+    return Listener{ id: l, cb: id };
+}
+
+// Calls f every time the event `name` ("click", "input", "keydown", ...) fires on el.
+// The Event handle passed to f is valid only during the call.
+pub fn on(el: Element, name: str, f: fn(Event)) -> Listener! {
+    c := Cb{ kind: 2, once: false, f1: f };
+    return listen_kind(el, name, c);
+}
+
+// Click handler without event details.
+pub fn on_click(el: Element, f: fn()) -> Listener! {
+    c := Cb{ kind: 1, once: false, f0: f };
+    return listen_kind(el, "click", c);
+}
+
+pub fn on_input(el: Element, f: fn(Event)) -> Listener! {
+    return on(el, "input", f);
+}
+
+pub fn on_change(el: Element, f: fn(Event)) -> Listener! {
+    return on(el, "change", f);
+}
+
+// Call prevent_default(ev) inside f to stop the browser from submitting the form.
+pub fn on_submit(el: Element, f: fn(Event)) -> Listener! {
+    return on(el, "submit", f);
+}
+
+pub fn on_keydown(el: Element, f: fn(Event)) -> Listener! {
+    return on(el, "keydown", f);
+}
+
+pub fn on_keyup(el: Element, f: fn(Event)) -> Listener! {
+    return on(el, "keyup", f);
+}
+
+// Removes a listener registered with on / on_click / ...
+pub fn off(l: Listener) -> ! {
+    r := h_unlisten(l.id);
+    cb_free(l.cb);
+    try check(r);
+    return;
+}
+
+// Fires an event on an element, as if the user had caused it (runs the listeners synchronously).
+pub fn dispatch(el: Element, name: str) -> ! {
+    try check(h_dispatch_event(el.h, name.ptr, name.len as i32));
+    return;
+}
+
+// ---- event details
+pub fn event_type(ev: Event) -> str! {
+    return finish_str(h_ev_str(ev.h, 0));
+}
+
+// KeyboardEvent.key, e.g. "Enter" or "a".
+pub fn key(ev: Event) -> str! {
+    return finish_str(h_ev_str(ev.h, 1));
+}
+
+// KeyboardEvent.code, e.g. "KeyA".
+pub fn key_code(ev: Event) -> str! {
+    return finish_str(h_ev_str(ev.h, 2));
+}
+
+// event.target.value (for input / change events).
+pub fn input_value(ev: Event) -> str! {
+    return finish_str(h_ev_str(ev.h, 3));
+}
+
+fn ev_int(ev: Event, field: i32) -> i64 {
+    r := h_ev_int(ev.h, field);
+    if r < 0 { return 0; }
+    return r as i64;
+}
+
+pub fn ctrl_key(ev: Event) -> bool { return (ev_int(ev, 0) & 1) != 0; }
+pub fn shift_key(ev: Event) -> bool { return (ev_int(ev, 0) & 2) != 0; }
+pub fn alt_key(ev: Event) -> bool { return (ev_int(ev, 0) & 4) != 0; }
+pub fn meta_key(ev: Event) -> bool { return (ev_int(ev, 0) & 8) != 0; }
+pub fn is_repeat(ev: Event) -> bool { return (ev_int(ev, 0) & 16) != 0; }
+
+pub fn mouse_button(ev: Event) -> i64 { return ev_int(ev, 1); }
+pub fn mouse_x(ev: Event) -> i64 { return ev_int(ev, 2); }
+pub fn mouse_y(ev: Event) -> i64 { return ev_int(ev, 3); }
+
+// The element the event was dispatched on. Release it when done.
+pub fn target(ev: Event) -> Element! {
+    h := h_ev_target(ev.h);
+    try check(h);
+    return Element{ h: h };
+}
+
+pub fn prevent_default(ev: Event) -> ! {
+    try check(h_ev_prevent(ev.h));
+    return;
+}
+
+pub fn stop_propagation(ev: Event) -> ! {
+    try check(h_ev_stop(ev.h));
+    return;
+}
+
+// ---------------------------------------------------------------- timers (asynchronous)
+// Calls f once after ms milliseconds.
+pub fn set_timeout(ms: i64, f: fn()) -> Timer! {
+    id := cb_add(Cb{ kind: 1, once: true, f0: f });
+    t := h_set_timer(ms as f64, 0, id);
+    if t < 0 {
+        cb_free(id);
+        try check(t);
+    }
+    return Timer{ id: t, cb: id };
+}
+
+// Calls f every ms milliseconds until clear_timer.
+pub fn set_interval(ms: i64, f: fn()) -> Timer! {
+    id := cb_add(Cb{ kind: 1, once: false, f0: f });
+    t := h_set_timer(ms as f64, 1, id);
+    if t < 0 {
+        cb_free(id);
+        try check(t);
+    }
+    return Timer{ id: t, cb: id };
+}
+
+// Cancels a timer. Cancelling a timeout that already fired is harmless.
+pub fn clear_timer(t: Timer) {
+    h_clear_timer(t.id);
+    cb_free(t.cb);
+}
+
+// Milliseconds since the page started (performance.now()).
+pub fn now() -> f64 {
+    return h_now();
+}
+
+// Math.random(): a float in [0, 1).
+pub fn random() -> f64 {
+    return h_random();
+}
+
+// ---------------------------------------------------------------- console
+pub fn log(msg: str) { h_console(0, msg.ptr, msg.len as i32); }
+pub fn info(msg: str) { h_console(1, msg.ptr, msg.len as i32); }
+pub fn warn(msg: str) { h_console(2, msg.ptr, msg.len as i32); }
+pub fn log_error(msg: str) { h_console(3, msg.ptr, msg.len as i32); }
+pub fn debug(msg: str) { h_console(4, msg.ptr, msg.len as i32); }
+
+// ---------------------------------------------------------------- local / session storage
+// Security is returned when the browser denies access (blocked cookies, sandboxed frames) or the
+// quota is exceeded. NotFound means "no such key".
+pub fn local_get(key: str) -> str! { return finish_str(h_store_get(0, key.ptr, key.len as i32)); }
+pub fn session_get(key: str) -> str! { return finish_str(h_store_get(1, key.ptr, key.len as i32)); }
+
+pub fn local_set(key: str, value: str) -> ! {
+    try check(h_store_set(0, key.ptr, key.len as i32, value.ptr, value.len as i32));
+    return;
+}
+pub fn session_set(key: str, value: str) -> ! {
+    try check(h_store_set(1, key.ptr, key.len as i32, value.ptr, value.len as i32));
+    return;
+}
+
+pub fn local_remove(key: str) -> ! {
+    try check(h_store_remove(0, key.ptr, key.len as i32));
+    return;
+}
+pub fn session_remove(key: str) -> ! {
+    try check(h_store_remove(1, key.ptr, key.len as i32));
+    return;
+}
+
+pub fn local_clear() -> ! {
+    try check(h_store_clear(0));
+    return;
+}
+pub fn session_clear() -> ! {
+    try check(h_store_clear(1));
+    return;
+}
+
+pub fn local_len() -> i64! {
+    n := h_store_len(0);
+    try check(n);
+    return n as i64;
+}
+pub fn session_len() -> i64! {
+    n := h_store_len(1);
+    try check(n);
+    return n as i64;
+}
+
+// The i-th key of the storage area.
+pub fn local_key(i: i64) -> str! { return finish_str(h_store_key(0, i as i32)); }
+pub fn session_key(i: i64) -> str! { return finish_str(h_store_key(1, i as i32)); }
+
+// ---------------------------------------------------------------- URL and location
+fn loc(which: i32) -> str {
+    return finish_str(h_loc_get(which)) catch "";
+}
+
+// The functions below return "" if the information is unavailable.
+pub fn href() -> str { return loc(0); }
+pub fn origin() -> str { return loc(1); }
+pub fn protocol() -> str { return loc(2); }
+pub fn host() -> str { return loc(3); }
+pub fn hostname() -> str { return loc(4); }
+pub fn pathname() -> str { return loc(5); }
+pub fn search() -> str { return loc(6); }
+pub fn hash() -> str { return loc(7); }
+
+// Value of a query-string parameter (?name=value); NotFound if absent.
+pub fn query_param(name: str) -> str! {
+    return finish_str(h_loc_param(name.ptr, name.len as i32));
+}
+
+pub fn set_hash(value: str) -> ! {
+    try check(h_loc_set_hash(value.ptr, value.len as i32));
+    return;
+}
+
+// Navigates to another page (leaves the application).
+pub fn navigate(url: str) -> ! {
+    try check(h_loc_navigate(url.ptr, url.len as i32));
+    return;
+}
+
+pub fn reload() -> ! {
+    try check(h_loc_reload());
+    return;
+}
+
+// ---------------------------------------------------------------- fetch (asynchronous HTTP)
+// Starts an HTTP request and returns immediately; f is called later with the Response. `body` and
+// `content_type` may be "". The browser's rules apply: same-origin or CORS, no mixed content, no
+// requests from file:// pages. A failed request (offline, blocked by CORS, ...) is reported to f as a
+// Response with failed(r) == true and status 0. The Response handle is valid only inside f.
+pub fn fetch(url: str, method: str, body: str, content_type: str, f: fn(Response)) -> ! {
+    id := cb_add(Cb{ kind: 3, once: true, f2: f });
+    r := h_fetch(url.ptr, url.len as i32, method.ptr, method.len as i32, body.ptr, body.len as i32, content_type.ptr, content_type.len as i32, id);
+    if r < 0 {
+        cb_free(id);
+        try check(r);
+    }
+    return;
+}
+
+pub fn fetch_get(url: str, f: fn(Response)) -> ! {
+    return fetch(url, "GET", "", "", f);
+}
+
+// POSTs a JSON text.
+pub fn fetch_post_json(url: str, json: str, f: fn(Response)) -> ! {
+    return fetch(url, "POST", json, "application/json", f);
+}
+
+fn res_int(r: Response, field: i32) -> i64 {
+    v := h_res_info(r.h, field);
+    if v < 0 { return 0; }
+    return v as i64;
+}
+
+// HTTP status code (0 if the request failed).
+pub fn status(r: Response) -> i64 { return res_int(r, 0); }
+// True for status 200-299.
+pub fn response_ok(r: Response) -> bool { return res_int(r, 1) == 1; }
+// True if the request itself failed (network error, CORS, ...): there is no HTTP status.
+pub fn failed(r: Response) -> bool { return res_int(r, 3) == 1; }
+pub fn body_len(r: Response) -> i64 { return res_int(r, 2); }
+
+// Copies the body into your own buffer (one copy, no intermediate string); returns the byte count.
+pub fn body_into(r: Response, buf: []u8) -> i64! {
+    n := h_res_read(r.h, buf.ptr, buf.len as i32);
+    try check(n);
+    return n as i64;
+}
+
+// The body as a newly allocated str (the bytes are used as they are). Release with free_str().
+pub fn body_text(r: Response) -> str! {
+    n := body_len(r);
+    buf := make(u8, n + 1);
+    got := h_res_read(r.h, buf.ptr, n as i32);
+    try check(got);
+    return str_from(buf.ptr, got as i64);
+}
+
+pub fn header(r: Response, name: str) -> str! {
+    return finish_str(h_res_header(r.h, name.ptr, name.len as i32));
+}
+
+// ---------------------------------------------------------------- JSON
+pub const JSON_NULL = 0;
+pub const JSON_BOOL = 1;
+pub const JSON_NUMBER = 2;
+pub const JSON_STRING = 3;
+pub const JSON_ARRAY = 4;
+pub const JSON_OBJECT = 5;
+
+// Parses a JSON text (Invalid on a syntax error). Release the result with json_release().
+pub fn json_parse(text: str) -> Json! {
+    h := h_json_parse(text.ptr, text.len as i32);
+    try check(h);
+    return Json{ h: h };
+}
+
+pub fn json_release(j: Json) {
+    h_release(j.h);
+}
+
+// One of the JSON_* constants.
+pub fn json_kind(j: Json) -> i64! {
+    k := h_json_kind(j.h);
+    try check(k);
+    return k as i64;
+}
+
+// Number of elements of an array / members of an object (WrongType otherwise).
+pub fn json_len(j: Json) -> i64! {
+    n := h_json_len(j.h);
+    try check(n);
+    return n as i64;
+}
+
+pub fn json_get(j: Json, key: str) -> Json! {
+    h := h_json_get(j.h, key.ptr, key.len as i32);
+    try check(h);
+    return Json{ h: h };
+}
+
+pub fn json_at(j: Json, i: i64) -> Json! {
+    h := h_json_at(j.h, i as i32);
+    try check(h);
+    return Json{ h: h };
+}
+
+// The i-th member name of an object.
+pub fn json_key_at(j: Json, i: i64) -> str! {
+    return finish_str(h_json_key_at(j.h, i as i32));
+}
+
+pub fn json_str(j: Json) -> str! {
+    return finish_str(h_json_str(j.h));
+}
+
+pub fn json_num(j: Json) -> f64! {
+    x: f64 = 0.0;
+    try check(h_json_num(j.h, &x as *u8));
+    return x;
+}
+
+pub fn json_bool(j: Json) -> bool! {
+    r := h_json_bool(j.h);
+    try check(r);
+    return r == 1;
+}
+
+// Serialises a value back to JSON text. Release with free_str().
+pub fn json_stringify(j: Json) -> str! {
+    return finish_str(h_json_stringify(j.h));
+}
+
+pub fn json_object() -> Json! {
+    h := h_json_new(5);
+    try check(h);
+    return Json{ h: h };
+}
+
+pub fn json_array() -> Json! {
+    h := h_json_new(4);
+    try check(h);
+    return Json{ h: h };
+}
+
+pub fn json_null() -> Json! {
+    h := h_json_new(0);
+    try check(h);
+    return Json{ h: h };
+}
+
+pub fn json_from_num(x: f64) -> Json! {
+    h := h_json_from_num(x);
+    try check(h);
+    return Json{ h: h };
+}
+
+pub fn json_from_str(s: str) -> Json! {
+    h := h_json_from_str(s.ptr, s.len as i32);
+    try check(h);
+    return Json{ h: h };
+}
+
+pub fn json_from_bool(b: bool) -> Json! {
+    v: i32 = 0;
+    if b { v = 1; }
+    h := h_json_from_bool(v);
+    try check(h);
+    return Json{ h: h };
+}
+
+// obj[key] = child (the value is copied into the object; release child afterwards).
+pub fn json_set(obj: Json, key: str, child: Json) -> ! {
+    try check(h_json_set(obj.h, key.ptr, key.len as i32, child.h));
+    return;
+}
+
+pub fn json_push(arr: Json, child: Json) -> ! {
+    try check(h_json_push(arr.h, child.h));
+    return;
+}

@@ -20,6 +20,7 @@ enum {
     OP_LOAD, OP_STORE, OP_LEA,
     OP_CALL, OP_RET, OP_SYSCALL, OP_MEMCPY, OP_MEMZERO,
     OP_PARAM,
+    OP_MEMGROW, OP_MEMSIZE,          // wasm only: memory.grow(pages) / memory.size
     OP__COUNT
 };
 
@@ -61,5 +62,6 @@ void ir_dump(FILE *f, FnIR *ir);
 void opt_function(FnIR *ir);
 void regalloc_and_emit(FILE *out);   // runs allocation + emission for all reachable functions
 const char *cc_name(int cc);
+void wasm_emit(const char *path);   // WebAssembly backend (wasm.c): writes a .wasm binary
 
 #endif

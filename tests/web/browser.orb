@@ -1,0 +1,227 @@
+// Browser API tests: console, timers, local/session storage, URL and location, fetch, JSON.
+use web;
+use strings;
+use testlib;
+
+pending: i64 = 0;
+ticks: i64 = 0;
+interval: web.Timer;
+cancelled_fired: bool = false;
+
+fn finish_one() {
+    pending -= 1;
+    if pending == 0 { testlib.done(); }
+}
+
+fn has(s: str, needle: str) -> bool {
+    return strings.find(s, needle) >= 0;
+}
+
+// ---------------------------------------------------------------- timers
+fn on_timeout() {
+    testlib.check("set_timeout fires once", true);
+    finish_one();
+}
+
+fn on_tick() {
+    ticks += 1;
+    if ticks == 3 {
+        web.clear_timer(interval);
+        testlib.check("set_interval fires repeatedly until cleared", true);
+        finish_one();
+    }
+}
+
+fn on_never() {
+    cancelled_fired = true;
+}
+
+fn on_check_cancelled() {
+    testlib.check("a cleared timeout never fires", !cancelled_fired);
+    testlib.check("interval stopped after clear_timer", ticks == 3);
+    finish_one();
+}
+
+// ---------------------------------------------------------------- fetch
+fn on_sample(r: web.Response) {
+    testlib.check("fetch_get: status 200", web.status(r) == 200);
+    testlib.check("fetch_get: response_ok", web.response_ok(r));
+    testlib.check("fetch_get: not failed", !web.failed(r));
+    body := web.body_text(r) catch |e| { testlib.check("body_text", false); finish_one(); return; };
+    testlib.check("body_len matches body_text", web.body_len(r) == body.len);
+    j := web.json_parse(body) catch |e| { testlib.check("json from fetch", false); finish_one(); return; };
+    name := web.json_get(j, "name") catch |e| { testlib.check("json_get name", false); finish_one(); return; };
+    ns := web.json_str(name) catch "";
+    testlib.check("fetched JSON field", ns == "Orb!");
+    web.free_str(ns);
+    web.json_release(name);
+    web.json_release(j);
+    web.free_str(body);
+    ct := web.header(r, "content-type") catch "";
+    testlib.check("response header", has(ct, "json"));
+    web.free_str(ct);
+    buf := make(u8, 16);
+    n := web.body_into(r, buf) catch -1;
+    testlib.check("body_into copies at most the buffer size", n == 16);
+    free(buf.ptr);
+    finish_one();
+}
+
+fn on_post(r: web.Response) {
+    testlib.check("POST echo: status 201", web.status(r) == 201);
+    body := web.body_text(r) catch |e| { testlib.check("POST body", false); finish_one(); return; };
+    testlib.check("POST body received by server", has(body, "\"hello\":\"orb\""));
+    web.free_str(body);
+    finish_one();
+}
+
+fn on_404(r: web.Response) {
+    testlib.check("404: status", web.status(r) == 404);
+    testlib.check("404: response_ok is false", !web.response_ok(r));
+    testlib.check("404: not a network failure", !web.failed(r));
+    finish_one();
+}
+
+fn on_netfail(r: web.Response) {
+    testlib.check("network failure reported as failed()", web.failed(r));
+    testlib.check("network failure: status 0", web.status(r) == 0);
+    testlib.check("network failure: empty body", web.body_len(r) == 0);
+    finish_one();
+}
+
+fn c_param(name: str) -> i64 {
+    web.query_param(name) catch |e| { return testlib.code(e as i64); };
+    return 0;
+}
+fn c_local(key: str) -> i64 {
+    web.local_get(key) catch |e| { return testlib.code(e as i64); };
+    return 0;
+}
+
+fn sync_tests() -> ! {
+    // ---- console (the harness checks what arrives in the browser console)
+    web.log("console-log");
+    web.info("console-info");
+    web.warn("console-warn");
+    web.log_error("console-error");
+    web.debug("console-debug");
+    println("console-println");
+
+    // ---- local storage
+    try web.local_clear();
+    testlib.check("local_get: missing key is NotFound", c_local("k") == testlib.NOT_FOUND);
+    try web.local_set("k", "wert ✓");
+    v := try web.local_get("k");
+    testlib.check("local_set / local_get (UTF-8)", v == "wert ✓");
+    web.free_str(v);
+    try web.local_set("k2", "2");
+    n := try web.local_len();
+    testlib.check("local_len", n == 2);
+    key0 := try web.local_key(0);
+    testlib.check("local_key", key0.len == 1 || key0.len == 2);
+    web.free_str(key0);
+    try web.local_remove("k");
+    testlib.check("local_remove", c_local("k") == testlib.NOT_FOUND);
+    big := make(u8, 100000);
+    for i in 0..100000 { big[i] = 'x'; }
+    try web.local_set("big", big as str);
+    bv := try web.local_get("big");
+    testlib.check("100 KB value round-trips through storage", bv.len == 100000);
+    web.free_str(bv);
+    free(big.ptr);
+    try web.local_clear();
+    n2 := try web.local_len();
+    testlib.check("local_clear", n2 == 0);
+
+    // ---- session storage is separate
+    try web.session_clear();
+    try web.session_set("s", "session value");
+    sv := try web.session_get("s");
+    testlib.check("session_set / session_get", sv == "session value");
+    web.free_str(sv);
+    testlib.check("session storage is independent of local storage", c_local("s") == testlib.NOT_FOUND);
+    sn := try web.session_len();
+    testlib.check("session_len", sn == 1);
+    try web.session_remove("s");
+    sn2 := try web.session_len();
+    testlib.check("session_remove", sn2 == 0);
+
+    // ---- URL and location
+    pn := web.pathname();
+    testlib.check("pathname", has(pn, "browser.html"));
+    web.free_str(pn);
+    se := web.search();
+    testlib.check("search", se == "?q=hello%20world&n=5");
+    web.free_str(se);
+    q := try web.query_param("q");
+    testlib.check("query_param decodes", q == "hello world");
+    web.free_str(q);
+    testlib.check("query_param: absent is NotFound", c_param("zzz") == testlib.NOT_FOUND);
+    o := web.origin();
+    testlib.check("origin", has(o, "http://127.0.0.1:"));
+    web.free_str(o);
+    pr := web.protocol();
+    testlib.check("protocol", pr == "http:");
+    web.free_str(pr);
+    try web.set_hash("section-2");
+    h := web.hash();
+    testlib.check("set_hash / hash", h == "#section-2");
+    web.free_str(h);
+    href := web.href();
+    testlib.check("href contains the hash", has(href, "#section-2"));
+    web.free_str(href);
+
+    // ---- JSON
+    obj := try web.json_object();
+    arr := try web.json_array();
+    one := try web.json_from_num(1.5);
+    two := try web.json_from_str("two \"quoted\"");
+    three := try web.json_from_bool(true);
+    nul := try web.json_null();
+    try web.json_push(arr, one);
+    try web.json_push(arr, two);
+    try web.json_push(arr, three);
+    try web.json_push(arr, nul);
+    try web.json_set(obj, "list", arr);
+    try web.json_set(obj, "n", one);
+    text := try web.json_stringify(obj);
+    testlib.check("json_stringify builds valid JSON", text == "{\"list\":[1.5,\"two \\\"quoted\\\"\",true,null],\"n\":1.5}");
+    back := try web.json_parse(text);
+    web.free_str(text);
+    lst := try web.json_get(back, "list");
+    ln := try web.json_len(lst);
+    testlib.check("json_len of an array", ln == 4);
+    e1 := try web.json_at(lst, 1);
+    s1 := try web.json_str(e1);
+    testlib.check("json string with escapes", s1 == "two \"quoted\"");
+    web.free_str(s1);
+    k := try web.json_kind(lst);
+    testlib.check("json_kind array", k == web.JSON_ARRAY);
+    kn := try web.json_key_at(back, 1);
+    testlib.check("json_key_at", kn == "n");
+    web.free_str(kn);
+    for h in [one, two, three, nul, arr, obj, back, lst, e1] { web.json_release(h); }
+    sum := try web.json_parse("0.30000000000000004");
+    sx := try web.json_num(sum);
+    testlib.check("json numbers keep full f64 precision", sx == 0.1 + 0.2);
+    web.json_release(sum);
+    return;
+}
+
+fn main() {
+    sync_tests() catch |e| {
+        println("FAIL unexpected error in sync tests: ", e);
+        return;
+    };
+    // asynchronous parts: each callback calls finish_one()
+    pending = 7;
+    web.set_timeout(20, on_timeout) catch |e| { println("FAIL set_timeout"); return; };
+    interval = web.set_interval(10, on_tick) catch |e| { println("FAIL set_interval"); return; };
+    cancel := web.set_timeout(30, on_never) catch |e| { println("FAIL set_timeout 2"); return; };
+    web.clear_timer(cancel);
+    web.set_timeout(250, on_check_cancelled) catch |e| { println("FAIL set_timeout 3"); return; };
+    web.fetch_get("/tests/web/data/sample.json", on_sample) catch |e| { println("FAIL fetch_get"); return; };
+    web.fetch_post_json("/echo", "{\"hello\":\"orb\"}", on_post) catch |e| { println("FAIL fetch_post_json"); return; };
+    web.fetch_get("/tests/web/data/missing.json", on_404) catch |e| { println("FAIL fetch 404"); return; };
+    web.fetch_get("/blocked", on_netfail) catch |e| { println("FAIL fetch netfail"); return; };
+}

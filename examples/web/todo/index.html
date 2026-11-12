@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Todo list - Orb! Web</title>
+<style>
+ body{font:16px/1.5 system-ui,sans-serif;max-width:34rem;margin:2rem auto;padding:0 1rem;color:#1d2433}
+ button{font:inherit;padding:.3rem .8rem;border:1px solid #8a93a6;border-radius:.4rem;background:#f3f5f9;cursor:pointer}
+ button:disabled{opacity:.5;cursor:not-allowed} input{font:inherit;padding:.3rem .5rem}
+ .big{font-size:3rem;font-weight:700} .neg{color:#b3261e} .done{text-decoration:line-through;color:#7a8396}
+ .err{color:#b3261e} .ok{color:#1b7f3b} li{margin:.3rem 0}
+</style></head><body>
+<h1>Todo list</h1>
+<form id="form"><input id="new" placeholder="What needs doing?" autocomplete="off"> <button type="submit">Add</button></form>
+<ul id="list"></ul><p id="left"></p>
+<script type="module">
+  import { start } from "../../../web/orb.js";
+  window.orb = await start("app.wasm");
+  window.ready = true;
+</script>
+</body></html>

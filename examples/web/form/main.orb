@@ -1,0 +1,64 @@
+// Sign-up form: live validation on input events, submit handling.
+use web;
+use strings;
+
+name_el: web.Element;
+email_el: web.Element;
+terms_el: web.Element;
+send_el: web.Element;
+
+fn valid_name(s: str) -> bool {
+    return strings.trim(s).len >= 2;
+}
+
+fn valid_email(s: str) -> bool {
+    at := strings.find(s, "@");
+    if at < 1 { return false; }
+    rest := s[at + 1..];
+    return strings.find(rest, ".") > 0 && !strings.ends_with(s, ".");
+}
+
+fn validate() {
+    n := web.get_value(name_el) catch "";
+    e := web.get_value(email_el) catch "";
+    t := web.is_checked(terms_el) catch false;
+    n_ok := valid_name(n);
+    e_ok := valid_email(e);
+    msg := "";
+    if !n_ok && n.len > 0 { msg = "at least 2 characters"; }
+    web.set_text_by_id("name-msg", msg) catch |x| {};
+    msg2 := "";
+    if !e_ok && e.len > 0 { msg2 = "not a valid e-mail address"; }
+    web.set_text_by_id("email-msg", msg2) catch |x| {};
+    web.set_prop_bool(send_el, "disabled", !(n_ok && e_ok && t)) catch |x| {};
+    if n.len > 0 { web.free_str(n); }
+    if e.len > 0 { web.free_str(e); }
+}
+
+fn on_edit(ev: web.Event) { validate(); }
+
+fn on_submit(ev: web.Event) {
+    web.prevent_default(ev) catch |x| {};
+    n := web.get_value(name_el) catch "";
+    msg := strings.concat("Welcome, ", strings.trim(n));
+    web.set_text_by_id("result", msg) catch |x| {};
+    free(msg.ptr);
+    if n.len > 0 { web.free_str(n); }
+}
+
+fn setup() -> ! {
+    name_el = try web.get_element("name");
+    email_el = try web.get_element("email");
+    terms_el = try web.get_element("terms");
+    send_el = try web.get_element("send");
+    try web.on_input(name_el, on_edit);
+    try web.on_input(email_el, on_edit);
+    try web.on_change(terms_el, on_edit);
+    form := try web.get_element("signup");
+    try web.on_submit(form, on_submit);
+    return;
+}
+
+fn main() {
+    setup() catch |e| { web.log_error("form: setup failed"); };
+}

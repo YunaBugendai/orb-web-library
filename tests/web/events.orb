@@ -1,0 +1,119 @@
+// Event handling tests: click, input, change, submit, keyboard, mouse details, removing listeners.
+use web;
+use strings;
+use testlib;
+
+clicks: i64 = 0;
+changes: i64 = 0;
+submits: i64 = 0;
+btn_listener: web.Listener;
+btn: web.Element;
+
+fn set(id: str, text: str) {
+    web.set_text_by_id(id, text) catch |e| { println("FAIL set_text_by_id ", id); };
+}
+
+fn set_num(id: str, n: i64) {
+    s := strings.from_i64(n);
+    set(id, s);
+    free(s.ptr);
+}
+
+fn on_btn() {
+    clicks += 1;
+    set_num("clicks", clicks);
+}
+
+fn on_input(ev: web.Event) {
+    v := web.input_value(ev) catch |e| { set("inval", "<error>"); return; };
+    set("inval", v);
+    web.free_str(v);
+}
+
+fn on_change(ev: web.Event) {
+    changes += 1;
+    set_num("changes", changes);
+}
+
+fn on_submit(ev: web.Event) {
+    web.prevent_default(ev) catch |e| { println("FAIL prevent_default"); };
+    submits += 1;
+    set_num("submits", submits);
+}
+
+fn on_key(ev: web.Event) {
+    k := web.key(ev) catch |e| { return; };
+    c := web.key_code(ev) catch |e| { return; };
+    line := strings.concat(k, "|");
+    line2 := strings.concat(line, c);
+    free(line.ptr);
+    out := line2;
+    if web.shift_key(ev) { out = strings.concat(line2, "|shift"); free(line2.ptr); }
+    set("lastkey", out);
+    free(out.ptr);
+    web.free_str(k);
+    web.free_str(c);
+}
+
+fn on_key_up(ev: web.Event) {
+    k := web.key(ev) catch |e| { return; };
+    set("lastup", k);
+    web.free_str(k);
+}
+
+fn on_area(ev: web.Event) {
+    x := strings.from_i64(web.mouse_x(ev));
+    y := strings.from_i64(web.mouse_y(ev));
+    b := strings.from_i64(web.mouse_button(ev));
+    t := web.event_type(ev) catch |e| { return; };
+    a := strings.concat(x, ",");
+    a2 := strings.concat(a, y);
+    a3 := strings.concat(a2, ",b");
+    a4 := strings.concat(a3, b);
+    set("mouse", a4);
+    set("evtype", t);
+    free(x.ptr); free(y.ptr); free(b.ptr); free(a.ptr); free(a2.ptr); free(a3.ptr); free(a4.ptr);
+    web.free_str(t);
+    tgt := web.target(ev) catch |e| { return; };
+    id := web.get_attr(tgt, "id") catch |e| { web.release(tgt); return; };
+    set("evtype", id);
+    web.free_str(id);
+    web.release(tgt);
+}
+
+fn on_remove() {
+    web.off(btn_listener) catch |e| { println("FAIL off"); };
+}
+
+fn on_rearm() {
+    btn_listener = web.on_click(btn, on_btn) catch |e| { println("FAIL on_click"); return; };
+}
+
+// exported for the test driver
+pub fn callbacks() -> i64 { return web.live_callbacks(); }
+pub fn click_count() -> i64 { return clicks; }
+
+fn setup() -> ! {
+    btn = try web.get_element("btn");
+    btn_listener = try web.on_click(btn, on_btn);
+    rm := try web.get_element("rm");
+    try web.on_click(rm, on_remove);
+    rearm := try web.get_element("rearm");
+    try web.on_click(rearm, on_rearm);
+    txt := try web.get_element("txt");
+    try web.on_input(txt, on_input);
+    try web.on_change(txt, on_change);
+    frm := try web.get_element("frm");
+    try web.on_submit(frm, on_submit);
+    doc := try web.document();
+    try web.on_keydown(doc, on_key);
+    try web.on_keyup(doc, on_key_up);
+    area := try web.get_element("area");
+    try web.on(area, "click", on_area);
+    return;
+}
+
+fn main() {
+    setup() catch |e| { println("FAIL setup: ", e); return; };
+    println("ready");
+}

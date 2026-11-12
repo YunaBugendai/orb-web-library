@@ -1,0 +1,10 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>trap</title></head>
+<body><button id="bump">bump</button><button id="boom">boom</button><button id="die">die</button>
+<span id="n">0</span>
+<script type="module">
+import { start } from "/web/orb.js";
+window.exitCode = null;
+window.orb = await start("/build/web-tests/trap.wasm", { onexit: (c) => { window.exitCode = c; } });
+window.ready = true;
+</script></body></html>

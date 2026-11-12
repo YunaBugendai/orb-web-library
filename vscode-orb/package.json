@@ -1,0 +1,74 @@
+{
+  "name": "orb-lang",
+  "displayName": "Orb!",
+  "description": "Orb! language support: syntax highlighting, snippets, run / build / check commands and inline compiler diagnostics.",
+  "version": "0.1.0",
+  "publisher": "orb-technologies",
+  "license": "MIT",
+  "engines": { "vscode": "^1.75.0" },
+  "categories": ["Programming Languages", "Snippets"],
+  "keywords": ["orb", "orb!", "compiler"],
+  "main": "./extension.js",
+  "activationEvents": ["onLanguage:orb"],
+  "extensionKind": ["workspace"],
+  "contributes": {
+    "languages": [{
+      "id": "orb",
+      "aliases": ["Orb!", "orb"],
+      "extensions": [".orb"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{ "language": "orb", "scopeName": "source.orb", "path": "./syntaxes/orb.tmLanguage.json" }],
+    "snippets": [{ "language": "orb", "path": "./snippets/orb.json" }],
+    "commands": [
+      { "command": "orb.run", "title": "Orb: Run File", "icon": "$(play)" },
+      { "command": "orb.runWithArgs", "title": "Orb: Run File With Arguments..." },
+      { "command": "orb.build", "title": "Orb: Build Executable" },
+      { "command": "orb.check", "title": "Orb: Check File (type-check only)" },
+      { "command": "orb.doctor", "title": "Orb: Doctor (check toolchain)" },
+      { "command": "orb.showOutput", "title": "Orb: Show Output" }
+    ],
+    "menus": {
+      "editor/title/run": [{ "command": "orb.run", "when": "resourceLangId == orb", "group": "navigation@1" }],
+      "editor/context": [{ "command": "orb.run", "when": "resourceLangId == orb", "group": "navigation" }],
+      "explorer/context": [{ "command": "orb.run", "when": "resourceExtname == .orb", "group": "navigation" }]
+    },
+    "keybindings": [
+      { "command": "orb.run", "key": "ctrl+alt+r", "mac": "cmd+alt+r", "when": "editorLangId == orb" },
+      { "command": "orb.build", "key": "ctrl+alt+b", "mac": "cmd+alt+b", "when": "editorLangId == orb" }
+    ],
+    "configuration": {
+      "title": "Orb!",
+      "properties": {
+        "orb.path": {
+          "type": "string", "default": "",
+          "markdownDescription": "Path to the `orb` compiler. Leave empty to use `orb` from PATH (`orb.exe` on native Windows)."
+        },
+        "orb.mode": {
+          "type": "string", "default": "auto", "enum": ["auto", "native", "wsl"],
+          "markdownDescription": "How to run the compiler. `auto` uses the native compiler and, on Windows when none is found, WSL. `wsl` always goes through `wsl.exe`."
+        },
+        "orb.wslDistro": { "type": "string", "default": "", "description": "WSL distribution to use (empty = default distribution)." },
+        "orb.extraArgs": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Extra compiler flags, e.g. [\"--unchecked\"]." },
+        "orb.checkOnSave": { "type": "boolean", "default": true, "description": "Type-check Orb! files when they are opened or saved and show errors inline." }
+      }
+    },
+    "taskDefinitions": [{
+      "type": "orb",
+      "required": ["command"],
+      "properties": {
+        "command": { "type": "string", "enum": ["build", "run", "check"], "description": "Compiler command." },
+        "file": { "type": "string", "description": "Source file (default: the active file)." }
+      }
+    }],
+    "problemMatchers": [{
+      "name": "orb",
+      "owner": "orb",
+      "fileLocation": ["autoDetect", "${workspaceFolder}"],
+      "pattern": {
+        "regexp": "^(.*):(\\d+):(\\d+):\\s+(error|warning|note):\\s+(.*)$",
+        "file": 1, "line": 2, "column": 3, "severity": 4, "message": 5
+      }
+    }]
+  }
+}

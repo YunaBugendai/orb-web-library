@@ -1,5 +1,7 @@
 // io - files and standard input
 
+use os;
+
 pub error IoError, NotFound;
 
 fn cstring(s: str) -> *u8 {
@@ -22,7 +24,7 @@ fn read_fd(fd: i64) -> str! {
             buf = nb;
             cap = ncap;
         }
-        r := __syscall(0, fd, buf + len, cap - len);
+        r := os.read(fd, buf + len, cap - len);
         if r < 0 {
             free(buf);
             fail IoError;
@@ -36,36 +38,36 @@ fn read_fd(fd: i64) -> str! {
 // Reads a whole file. The result is allocated; release it with free().
 pub fn read_file(path: str) -> str! {
     c := cstring(path);
-    fd := __syscall(2, c, 0, 0);
+    fd := os.open_read(c);
     free(c);
     if fd < 0 {
         if fd == -2 { fail NotFound; }
         fail IoError;
     }
     r := read_fd(fd) catch |e| {
-        __syscall(3, fd);
+        os.close(fd);
         fail e;
     };
-    __syscall(3, fd);
+    os.close(fd);
     return r;
 }
 
 // Creates or truncates a file and writes data to it.
 pub fn write_file(path: str, data: str) -> ! {
     c := cstring(path);
-    fd := __syscall(2, c, 577, 420);
+    fd := os.open_write(c);
     free(c);
     if fd < 0 { fail IoError; }
     off := 0;
     while off < data.len {
-        r := __syscall(1, fd, data.ptr + off, data.len - off);
+        r := os.write(fd, data.ptr + off, data.len - off);
         if r <= 0 {
-            __syscall(3, fd);
+            os.close(fd);
             fail IoError;
         }
         off += r;
     }
-    __syscall(3, fd);
+    os.close(fd);
 }
 
 // Reads all of standard input.
@@ -89,7 +91,7 @@ pub fn read_line() -> str! {
             buf = nb;
             cap *= 2;
         }
-        r := __syscall(0, 0, buf + len, 1);
+        r := os.read(0, buf + len, 1);
         if r <= 0 {
             if len == 0 {
                 free(buf);

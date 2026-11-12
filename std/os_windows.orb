@@ -1,0 +1,79 @@
+// os (Windows x86-64) - implemented on kernel32 through the Win64 calling convention.
+// EXPERIMENTAL: written without access to a Windows machine; run `orb doctor` to check your setup.
+// File "descriptors" are Win32 HANDLEs; 0, 1 and 2 are mapped to the standard handles.
+
+extern "win64" fn GetStdHandle(which: i64) -> i64;
+extern "win64" fn WriteFile(h: i64, buf: *u8, n: u32, written: *u32, overlapped: i64) -> i32;
+extern "win64" fn ReadFile(h: i64, buf: *u8, n: u32, got: *u32, overlapped: i64) -> i32;
+extern "win64" fn CreateFileA(name: *u8, access: u32, share: u32, security: i64, disposition: u32, flags: u32, template: i64) -> i64;
+extern "win64" fn CloseHandle(h: i64) -> i32;
+extern "win64" fn ExitProcess(code: u32);
+extern "win64" fn VirtualAlloc(addr: i64, size: i64, kind: u32, protect: u32) -> *u8;
+extern "win64" fn VirtualFree(p: *u8, size: i64, kind: u32) -> i32;
+extern "win64" fn GetLastError() -> u32;
+extern "win64" fn SetConsoleOutputCP(cp: u32) -> i32;
+
+fn handle(fd: i64) -> i64 {
+    if fd == 0 { return GetStdHandle(-10); }
+    if fd == 1 { return GetStdHandle(-11); }
+    if fd == 2 { return GetStdHandle(-12); }
+    return fd;
+}
+
+pub fn init() {
+    SetConsoleOutputCP(65001);
+}
+
+pub fn write(fd: i64, p: *u8, n: i64) -> i64 {
+    written: u32 = 0;
+    ok := WriteFile(handle(fd), p, n as u32, &written, 0);
+    if ok == 0 { return -1; }
+    return written as i64;
+}
+
+pub fn read(fd: i64, p: *u8, n: i64) -> i64 {
+    got: u32 = 0;
+    ok := ReadFile(handle(fd), p, n as u32, &got, 0);
+    if ok == 0 {
+        if GetLastError() == 109 { return 0; }   // ERROR_BROKEN_PIPE: end of input
+        return -1;
+    }
+    return got as i64;
+}
+
+// GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL
+pub fn open_read(path: *u8) -> i64 {
+    h := CreateFileA(path, 0x80000000, 1, 0, 3, 0x80, 0);
+    if h == -1 {
+        e := GetLastError();
+        if e == 2 || e == 3 { return -2; }
+        return -1;
+    }
+    return h;
+}
+
+// GENERIC_WRITE, no sharing, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL
+pub fn open_write(path: *u8) -> i64 {
+    h := CreateFileA(path, 0x40000000, 0, 0, 2, 0x80, 0);
+    if h == -1 { return -1; }
+    return h;
+}
+
+pub fn close(fd: i64) {
+    CloseHandle(fd);
+}
+
+pub fn exit(code: i64) -> never {
+    ExitProcess(code as u32);
+    loop {}
+}
+
+// MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE
+pub fn alloc(size: i64) -> *u8 {
+    return VirtualAlloc(0, size, 0x3000, 4);
+}
+
+// MEM_RELEASE
+pub fn release(p: *u8, size: i64) {
+    VirtualFree(p, 0, 0x8000);
+}

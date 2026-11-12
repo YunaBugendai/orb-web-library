@@ -1,0 +1,8 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>data</title></head>
+<body><div id="out"></div><input id="num" type="number"><input id="flag" type="checkbox">
+<script type="module">
+import { start } from "/web/orb.js";
+window.orb = await start("/build/web-tests/data.wasm");
+window.ready = true;
+</script></body></html>

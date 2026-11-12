@@ -1,0 +1,90 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Orb!",
+  "scopeName": "source.orb",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#chars" },
+    { "include": "#numbers" },
+    { "include": "#declarations" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#builtins" },
+    { "include": "#constants" },
+    { "include": "#calls" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash.orb", "match": "//.*$" },
+        { "name": "comment.block.orb", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.orb",
+      "begin": "\"", "end": "\"",
+      "patterns": [
+        { "name": "constant.character.escape.orb", "match": "\\\\([ntr0\\\\\"']|x[0-9A-Fa-f]{2})" },
+        { "name": "invalid.illegal.escape.orb", "match": "\\\\." }
+      ]
+    },
+    "chars": {
+      "name": "string.quoted.single.orb",
+      "match": "'(\\\\([ntr0\\\\\"']|x[0-9A-Fa-f]{2})|[^'\\\\])'",
+      "captures": { "1": { "name": "constant.character.escape.orb" } }
+    },
+    "numbers": {
+      "patterns": [
+        { "name": "constant.numeric.hex.orb", "match": "\\b0[xX][0-9A-Fa-f_]+\\b" },
+        { "name": "constant.numeric.binary.orb", "match": "\\b0[bB][01_]+\\b" },
+        { "name": "constant.numeric.float.orb", "match": "\\b[0-9][0-9_]*\\.[0-9][0-9_]*([eE][+-]?[0-9]+)?\\b|\\b[0-9][0-9_]*[eE][+-]?[0-9]+\\b" },
+        { "name": "constant.numeric.integer.orb", "match": "\\b[0-9][0-9_]*\\b" }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        { "match": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)", "captures": { "1": { "name": "storage.type.function.orb" }, "2": { "name": "entity.name.function.orb" } } },
+        { "match": "\\b(struct|enum)\\s+([A-Za-z_][A-Za-z0-9_]*)", "captures": { "1": { "name": "storage.type.struct.orb" }, "2": { "name": "entity.name.type.orb" } } },
+        { "match": "\\b(const)\\s+([A-Za-z_][A-Za-z0-9_]*)", "captures": { "1": { "name": "storage.modifier.orb" }, "2": { "name": "variable.other.constant.orb" } } },
+        { "match": "\\b(use)\\s+([A-Za-z_][A-Za-z0-9_]*)", "captures": { "1": { "name": "keyword.control.import.orb" }, "2": { "name": "entity.name.namespace.orb" } } },
+        { "match": "\\b(error)\\s+([A-Za-z_][A-Za-z0-9_]*(\\s*,\\s*[A-Za-z_][A-Za-z0-9_]*)*)", "captures": { "1": { "name": "storage.type.error.orb" }, "2": { "name": "entity.name.type.error.orb" } } },
+        { "name": "storage.modifier.orb", "match": "\\b(pub|extern)\\b" }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        { "name": "keyword.control.orb", "match": "\\b(if|else|while|for|in|loop|break|continue|return|fail|try|catch)\\b" },
+        { "name": "keyword.operator.cast.orb", "match": "\\bas\\b" }
+      ]
+    },
+    "types": {
+      "patterns": [
+        { "name": "support.type.primitive.orb", "match": "\\b(i8|i16|i32|i64|u8|u16|u32|u64|f64|bool|str|error|never)\\b" },
+        { "name": "entity.name.type.orb", "match": "\\b[A-Z][A-Za-z0-9_]*\\b(?=\\s*(\\{|<|\\)|,|;|=|\\.))" }
+      ]
+    },
+    "builtins": {
+      "name": "support.function.builtin.orb",
+      "match": "\\b(print|println|eprint|eprintln|free|sizeof|new|make|panic|assert|exit|args)\\b(?=\\s*\\()"
+    },
+    "constants": {
+      "name": "constant.language.orb",
+      "match": "\\b(true|false|null)\\b"
+    },
+    "calls": {
+      "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\(|<[A-Za-z_*\\[\\]0-9, ]*>\\s*\\()",
+      "captures": { "1": { "name": "entity.name.function.call.orb" } }
+    },
+    "operators": {
+      "patterns": [
+        { "name": "keyword.operator.assignment.orb", "match": ":=|<<=|>>=|\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^=|=(?!=)" },
+        { "name": "keyword.operator.range.orb", "match": "\\.\\.=?" },
+        { "name": "keyword.operator.comparison.orb", "match": "==|!=|<=|>=|<|>" },
+        { "name": "keyword.operator.logical.orb", "match": "&&|\\|\\||!" },
+        { "name": "keyword.operator.arithmetic.orb", "match": "->|<<|>>|[-+*/%&|^~]" }
+      ]
+    }
+  }
+}

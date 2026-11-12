@@ -565,7 +565,14 @@ static Node *parse_fn(bool pub, bool ext) {
     }
     expect(TK_RPAREN, "to close parameter list");
     if (accept(TK_ARROW)) n->a = parse_type();
-    if (ext) expect(TK_SEMI, "after extern function");
+    if (ext) {
+        if (accept(TK_ASSIGN)) {
+            if (ck() != TK_STR) fail(cpos(), "expected the linker symbol name as a string, found %s", describe(cur()));
+            n->str = cur()->s; n->slen = cur()->slen;
+            adv();
+        }
+        expect(TK_SEMI, "after extern function");
+    }
     else n->b = parse_block();
     return n;
 }
@@ -613,7 +620,19 @@ static void parse_decl(Node *file) {
     Pos p = cpos();
     switch (ck()) {
     case TK_FN: vpush(file->list, parse_fn(pub, false)); break;
-    case TK_EXTERN: adv(); vpush(file->list, parse_fn(pub, true)); break;
+    case TK_EXTERN: {
+        adv();
+        int abi = 0;
+        if (ck() == TK_STR) {
+            if (!strcmp(cur()->s, "win64")) abi = 1;
+            else if (strcmp(cur()->s, "C") && strcmp(cur()->s, "sysv")) fail(cpos(), "unknown calling convention \"%s\" (use \"win64\" or \"C\")", cur()->s);
+            adv();
+        }
+        Node *fnn = parse_fn(pub, true);
+        fnn->op = abi;
+        vpush(file->list, fnn);
+        break;
+    }
     case TK_STRUCT: vpush(file->list, parse_struct(pub)); break;
     case TK_ENUM: vpush(file->list, parse_enum(pub)); break;
     case TK_CONST: vpush(file->list, parse_constdecl(pub)); break;

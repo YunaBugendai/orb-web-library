@@ -143,6 +143,8 @@ static int builtin_id(const char *nm) {
     if (!strcmp(nm, "__memcpy")) return B_MEMCPY;
     if (!strcmp(nm, "__memzero")) return B_MEMZERO;
     if (!strcmp(nm, "__errname")) return B_ERRNAME;
+    if (!strcmp(nm, "__memgrow")) return B_MEMGROW;
+    if (!strcmp(nm, "__memsize")) return B_MEMSIZE;
     return 0;
 }
 
@@ -172,6 +174,13 @@ static Type *check_builtin(Ctx *c, Node *n, int b) {
             Type *t = check_expr(c, n->list.d[i], ty_i64);
             if (t->kind != TY_ERR && !(ty_is_intlike(t) || t->kind == TY_PTR)) diag_error(n->list.d[i]->pos, "syscall arguments must be integers or pointers");
         }
+        return n->type = ty_i64;
+    }
+    case B_MEMGROW: case B_MEMSIZE: {
+        int want = b == B_MEMGROW ? 1 : 0;
+        if (g_target != TGT_WASM) { diag_error(n->pos, "__memgrow / __memsize exist only on the wasm target"); return n->type = ty_i64; }
+        if (na != want) { diag_error(n->pos, "builtin expects %d argument%s", want, want == 1 ? "" : "s"); return n->type = ty_i64; }
+        if (want) check_expr(c, n->list.d[0], ty_i64);
         return n->type = ty_i64;
     }
     case B_ERRNAME:

@@ -1,5 +1,4 @@
 #include "sema.h"
-#include <unistd.h>
 
 Program g_prog;
 const char *g_std_dir = NULL;
@@ -106,8 +105,9 @@ Func *new_func(Sym *s, Node *decl, Module *m) {
     Func *f = xcalloc(sizeof(Func));
     f->sym = s; f->decl = decl; f->mod = m;
     f->is_extern = decl->ext;
+    f->winabi = decl->ext && decl->op == 1;
     f->id = g_prog.funcs.n;
-    f->asm_name = f->is_extern ? xstrdup(decl->name) : xsprintf("orb_%s_%s_%d", m->name, decl->name, f->id);
+    f->asm_name = f->is_extern ? xstrdup(decl->str ? decl->str : decl->name) : xsprintf("orb_%s_%s_%d", m->name, decl->name, f->id);
     s->func = f;
     vpush(g_prog.funcs, f);
     return f;
@@ -587,23 +587,37 @@ static Module *load_module_text(const char *path, const char *name, char *text, 
 
 static char *dir_of(const char *path) {
     const char *sl = strrchr(path, '/');
+    const char *bs = strrchr(path, '\\');
+    if (bs && (!sl || bs > sl)) sl = bs;
     if (!sl) return xstrdup(".");
     return xstrndup(path, (size_t)(sl - path));
+}
+
+// The standard module `os` is a different file for every target (os_linux, os_macos, os_windows).
+static const char *std_file_for(const char *name) {
+    if (!strcmp(name, "os")) return xsprintf("os_%s", target_name(g_target));
+    return name;
 }
 
 static Module *find_module(Module *from, const char *name, Pos p) {
     Module *m = map_get(&loaded, name);
     if (m) return m;
+    bool std_only = !from->is_user && !strcmp(name, "os");
     char *cand = xsprintf("%s/%s.orb", dir_of(from->path), name);
-    char *text = read_file_text(cand);
+    char *text = std_only ? NULL : read_file_text(cand);
     if (text) return load_module_text(cand, name, text, true);
+    if (!strcmp(name, "web") && g_target != TGT_WASM) {
+        diag_error(p, "the standard module `web` talks to a browser: build with --target wasm (see docs/WEB.md)");
+        return NULL;
+    }
+    const char *real = std_file_for(name);
     if (g_std_dir) {
-        cand = xsprintf("%s/%s.orb", g_std_dir, name);
+        cand = xsprintf("%s/%s.orb", g_std_dir, real);
         text = read_file_text(cand);
         if (text) return load_module_text(cand, name, text, false);
     }
-    const char *src = std_source(name);
-    if (src) return load_module_text(xsprintf("<std>/%s.orb", name), name, xstrdup(src), false);
+    const char *src = std_source(real);
+    if (src) return load_module_text(xsprintf("<std>/%s.orb", real), name, xstrdup(src), false);
     diag_error(p, "cannot find module '%s' (looked for %s/%s.orb and the standard library)", name, dir_of(from->path), name);
     return NULL;
 }
@@ -700,6 +714,10 @@ static Module *load_module_text(const char *path, const char *name, char *text, 
     collect(m);
     return m;
 }
+
+int g_target = TGT_LINUX;
+int g_host = TGT_LINUX;
+const char *target_name(int t) { return t == TGT_MACOS ? "macos" : t == TGT_WINDOWS ? "windows" : t == TGT_WASM ? "wasm" : "linux"; }
 
 Module *load_std_module(const char *name) {
     if (g_std_dir) {
