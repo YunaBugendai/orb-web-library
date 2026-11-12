@@ -1,0 +1,53 @@
+name: Orb! Windows installer
+
+on:
+  push:
+    branches: [main, bundled-standard-library-installer]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up UCRT64 build tools
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            make
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-binutils
+      - name: Build native Orb! compiler
+        shell: msys2 {0}
+        run: |
+          make CFLAGS="-O2 -std=gnu11 -Wall -Wextra -Wno-unused-parameter -Wno-clobbered -static -static-libgcc"
+          ./build/orb.exe version
+      - name: Set up Python for VS Code packaging
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Package the VS Code extension
+        shell: pwsh
+        run: python tools/package-vsix.py build/dist
+      - name: Compile the graphical installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            throw "Inno Setup 6 compiler was not found on this runner."
+          }
+          & $iscc "installer\Orb.iss"
+      - name: Upload Orb! Setup.exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: Orb-Setup-0.2.0
+          path: build/installer/Orb-Setup-0.2.0.exe
+          if-no-files-found: error
+          retention-days: 90

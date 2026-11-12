@@ -29,36 +29,33 @@ orb doctor
 
 ## Windows
 
-### Recommended: WSL2
-1. PowerShell as Administrator: `wsl --install`, reboot, finish the Ubuntu setup.
+### Graphical installer
+
+Download `Orb-Setup-0.2.0.exe` from the latest successful
+[Windows installer workflow](https://github.com/YunaBugendai/orb-web-library/actions/workflows/windows-installer.yml).
+The wizard installs the compiler and lets you select the VS Code extension, examples, offline
+documentation and editable source files. It can also add Orb! to your current user's PATH.
+
+The standard modules and WebAssembly browser runtime are embedded in the compiler; they are not
+separate installation components.
+
+### Recommended for running programs: WSL2
+
+1. PowerShell as Administrator: `wsl --install`, reboot, finish the Ubuntu first-run setup.
 2. In PowerShell, from the unpacked Orb! folder:
    `powershell -ExecutionPolicy Bypass -File tools\windows\setup-wsl.ps1`
    (installs the build tools inside WSL, builds and installs `orb`, and adds an `orb.cmd` shim to your PATH).
 3. `orb run examples\hello.orb` works from any Windows prompt. Programs run inside Linux; compiled
    executables are Linux ELF files (run them with `wsl ./name`).
 4. VS Code: install the extension (see `VSCODE.md`). It detects that there is no native `orb.exe` and routes
-   everything through `wsl.exe`, translating `C:\...` paths automatically. Alternatively use the
-   *WSL* extension, open your folder inside WSL, and everything is plain Linux.
+   everything through `wsl.exe`, translating `C:\...` paths automatically.
 
 Tip: for speed keep projects inside the WSL file system (`\\wsl$\Ubuntu\home\you\...`) rather than `C:\`.
 
 ### Native Windows (experimental)
-1. Install [MSYS2](https://www.msys2.org), open the **MSYS2 MinGW x64** shell and run:
-   `pacman -S --needed make mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils`
-2. In the Orb! folder: `make` (produces `build/orb.exe`). Add `build` to your PATH or copy `orb.exe` somewhere on it.
-3. `orb doctor`, then `orb run examples/hello.orb` (the shell must be the MinGW x64 one: `as` and `gcc` come from it).
-4. `orb build main.orb` produces `main.exe`. The executable links the MinGW C runtime only for argument parsing
-   and uses `kernel32` for everything else; the stack is set to 8 MB.
 
-Cross-compiling from Linux: install `mingw-w64` (`x86_64-w64-mingw32-gcc`), then
-`orb build main.orb --target windows` produces `main.exe`.
-
-How it works: `std/os_windows.orb` implements files, console I/O and memory with `kernel32`
-(`WriteFile`, `ReadFile`, `CreateFileA`, `VirtualAlloc`, `ExitProcess`, ...) declared as
-`extern "win64" fn ...`, which makes the compiler use the Microsoft x64 calling convention
-(`rcx rdx r8 r9`, 32 bytes of shadow space) for those calls. The program entry is `main`, called by the
-MinGW C start-up code.
-
+The installer includes a native x86-64 compiler build. The Windows code-generation target is still
+experimental. For a more predictable development environment, use WSL2 as described above.
 ## macOS (experimental)
 ```sh
 xcode-select --install        # provides clang and make

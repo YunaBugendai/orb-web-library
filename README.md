@@ -16,6 +16,16 @@ fn main() {
 }
 ```
 
+## Installing Orb!
+
+- **Windows:** download `Orb-Setup-0.2.0.exe` from the latest successful
+  [Windows installer workflow](https://github.com/YunaBugendai/orb-web-library/actions/workflows/windows-installer.yml).
+  The graphical wizard lets you select the VS Code extension, examples, documentation and source files.
+- **Linux/macOS:** from a source checkout, run `python3 tools/install.py` for the component-selection wizard.
+
+The compiler's standard modules (`math`, `strings`, `vec`, `io`, `web`) are built in. WebAssembly
+programs automatically get a browser launcher; there is no separate runtime package to install.
+
 ## Quick start
 
 Requirements: a C compiler (to build the compiler) plus the platform's assembler/linker:
