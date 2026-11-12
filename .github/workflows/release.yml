@@ -94,7 +94,10 @@ jobs:
           if (-not (Test-Path $iscc)) { throw "Inno Setup 6 compiler was not found." }
           $version = $env:GITHUB_REF_NAME.TrimStart('v')
           & $iscc "/DAppVersion=$version" "installer\Orb.iss"
-          Copy-Item "build\installer\Orb-Setup-$version.exe" "dist\Orb-Setup-$version.exe"
+          $installer = "build\installer\Orb-Setup-$version.exe"
+          Copy-Item $installer "dist\Orb-Setup-$version.exe"
+          $hash = (Get-FileHash -Path $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  Orb-Setup-$version.exe" | Out-File -Encoding ascii "dist\Orb-Setup-$version.exe.sha256"
       - uses: actions/upload-artifact@v4
         with:
           name: orb-windows-x86_64
