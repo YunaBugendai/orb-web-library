@@ -16,11 +16,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - name: Build compiler and test
         run: |
           make
           make test
           make test-wasm
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+          make test-web
       - name: Package VS Code extension
         run: python tools/package-vsix.py build/dist
       - name: Create Linux release archive
@@ -37,6 +43,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
       - name: Build compiler and test
         run: |
           make

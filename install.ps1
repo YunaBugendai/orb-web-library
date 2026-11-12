@@ -4,9 +4,11 @@ $ErrorActionPreference = 'Stop'
 $repo = 'YunaBugendai/orb-web-library'
 $api = "https://api.github.com/repos/$repo/releases/latest"
 $release = Invoke-RestMethod -Uri $api -Headers @{ 'User-Agent' = 'Orb-Setup/1' }
-$asset = $release.assets | Where-Object { $_.name -eq 'Orb-Setup-0.2.0.exe' } | Select-Object -First 1
+$version = $release.tag_name.TrimStart('v')
+$installerName = "Orb-Setup-$version.exe"
+$asset = $release.assets | Where-Object { $_.name -eq $installerName } | Select-Object -First 1
 if (-not $asset) {
-    throw "The latest Orb! release does not contain Orb-Setup-0.2.0.exe."
+    throw "The latest Orb! release does not contain $installerName."
 }
 $temp = Join-Path ([IO.Path]::GetTempPath()) ("Orb-Setup-" + [guid]::NewGuid().ToString() + '.exe')
 try {

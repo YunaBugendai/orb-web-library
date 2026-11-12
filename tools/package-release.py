@@ -55,7 +55,7 @@ def main() -> int:
 
     manifest = {
         "name": "Orb!",
-        "version": args.version,
+        "version": args.version.lstrip("v"),
         "platform": args.platform,
         "required": ["compiler"],
         "optional": ["vscode", "examples", "docs", "stdlib", "websrc"],
