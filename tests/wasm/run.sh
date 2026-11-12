@@ -27,6 +27,17 @@ for f in tests/panic/*.orb tests/wasm/stackoverflow.orb; do
     else bad "$n does not compile"; fi
 done
 $ORB build tests/wasm/abi.orb --target wasm -o $TMP/abi.wasm && node tests/wasm/abi_test.js $TMP/abi.wasm >/dev/null && ok || bad "abi test"
+# A WASM build also emits a self-starting browser launcher with the embedded host runtime.
+$ORB build examples/web/starter/main.orb --target wasm -o $TMP/starter.wasm 2>$TMP/err.txt && {
+    runtime_bytes=$(wc -c < web/orb.js)
+    head -c "$runtime_bytes" "$TMP/starter.wasm.js" > "$TMP/runtime-prefix.js"
+    if cmp -s "$TMP/runtime-prefix.js" web/orb.js && grep -q 'new URL("./starter.wasm", import.meta.url)' "$TMP/starter.wasm.js"; then
+        ok
+    else
+        bad "embedded browser runtime launcher differs from source or has a wrong WASM URL"
+    fi
+} || bad "WASM browser launcher generation"
+
 # the compiler must refuse what the wasm target cannot do
 printf 'fn main() { __syscall(60, 0); }\n' > $TMP/sys.orb
 $ORB build $TMP/sys.orb --target wasm -o $TMP/sys.wasm 2>$TMP/err.txt && bad "__syscall should be rejected" || ok

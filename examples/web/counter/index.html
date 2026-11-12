@@ -12,9 +12,5 @@
 <p class="big" id="count">0</p>
 <p><button id="dec">-1</button> <button id="inc">+1</button> <button id="reset">reset</button></p>
 <p id="note"></p>
-<script type="module">
-  import { start } from "../../../web/orb.js";
-  window.orb = await start("app.wasm");
-  window.ready = true;
-</script>
+<script type="module" src="./app.wasm.js"></script>
 </body></html>

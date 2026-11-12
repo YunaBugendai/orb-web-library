@@ -11,9 +11,5 @@
 <h1>Stopwatch</h1>
 <p class="big" id="time">00:00.0</p>
 <p><button id="startstop">Start</button> <button id="reset">Reset</button></p>
-<script type="module">
-  import { start } from "../../../web/orb.js";
-  window.orb = await start("app.wasm");
-  window.ready = true;
-</script>
+<script type="module" src="./app.wasm.js"></script>
 </body></html>

@@ -13,9 +13,5 @@
 <p><label>E-mail <input id="email"></label> <span id="email-msg" class="err"></span></p>
 <p><label><input id="terms" type="checkbox"> I accept the terms</label></p>
 <p><button id="send" type="submit" disabled>Create account</button></p></form><p id="result"></p>
-<script type="module">
-  import { start } from "../../../web/orb.js";
-  window.orb = await start("app.wasm");
-  window.ready = true;
-</script>
+<script type="module" src="./app.wasm.js"></script>
 </body></html>

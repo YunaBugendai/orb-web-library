@@ -10,9 +10,5 @@
 </style></head><body>
 <h1>Fetch and JSON</h1>
 <p><button id="load">Load people</button></p><p id="status"></p><ul id="people"></ul>
-<script type="module">
-  import { start } from "../../../web/orb.js";
-  window.orb = await start("app.wasm");
-  window.ready = true;
-</script>
+<script type="module" src="./app.wasm.js"></script>
 </body></html>
