@@ -1,1 +1,5 @@
+build/
+__pycache__/
+*.py[cod]
 examples/web/*/app.wasm
+examples/web/*/app.wasm.js

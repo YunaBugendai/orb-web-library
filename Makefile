@@ -12,8 +12,8 @@ $(BUILD)/embed: tools/embed.c
 	@mkdir -p $(BUILD)
 	$(CC) -O1 -o $@ $<
 
-$(BUILD)/stdlib_data.c: $(BUILD)/embed $(STD) Makefile
-	$(BUILD)/embed $(STD) > $@
+$(BUILD)/stdlib_data.c: $(BUILD)/embed $(STD) web/orb.js Makefile
+	$(BUILD)/embed --runtime web/orb.js $(STD) > $@
 
 $(BUILD)/orb: $(SRC) $(BUILD)/stdlib_data.c src/*.h
 	$(CC) $(CFLAGS) -Isrc -o $@ $(SRC) $(BUILD)/stdlib_data.c
