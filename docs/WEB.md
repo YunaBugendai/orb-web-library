@@ -10,13 +10,14 @@ standard module `web`.
         |                           v
         |                       app.wasm  (your logic, Orb! compiled to WebAssembly)
         |                           |
-        +---- web/orb.js (loader + host functions: the only JavaScript, ~350 lines, no app logic)
+        +---- app.wasm.js (generated automatically; contains the embedded browser host runtime)
                                     |
                               browser: DOM, events, timers, storage, location, fetch, JSON
 ```
 
 There is no HTML parser or template language in Orb!, and no JavaScript transpilation: `main.orb` is
-compiled by the real Orb! compiler's WebAssembly backend (see [WASM.md](WASM.md)).
+compiled by the real Orb! compiler's WebAssembly backend (see [WASM.md](WASM.md)). The browser bridge source
+is maintained in `web/orb.js` and embedded into the compiler; developers do not copy or install it.
 
 ## Installation: built in, not an extra package
 
