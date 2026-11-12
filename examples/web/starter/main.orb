@@ -24,6 +24,7 @@ fn main() {
     };
     web.on_click(button, increment) catch |e| {
         web.log_error("could not register the click handler");
+        return;
     };
     web.release(button);
     render();
