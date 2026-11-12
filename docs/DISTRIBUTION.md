@@ -47,7 +47,7 @@ The page does not import a package or manually call `start()`. Serve it over HTT
 
 ## Interactive installer
 
-From a source checkout on Linux/macOS (or a supported MinGW shell on Windows):
+From a source checkout on Linux or macOS:
 
 ```sh
 python3 tools/install.py

@@ -6,19 +6,19 @@ What differs between systems is the object format, the system-call layer and the
 | you use | what to do | status |
 |---|---|---|
 | **Linux x86-64** | `make && sudo make install` | **fully supported, fully tested** (79 checks + fuzzer) |
-| **Windows 10/11 — via WSL2** (recommended) | run `tools\windows\setup-wsl.ps1` once; use `orb` from PowerShell/cmd or the VS Code extension | **works through the Linux build**; the Windows glue (path translation, `orb.cmd`, extension) is unit tested, but I could not run it on a real Windows machine |
-| **Windows — native** (`orb.exe`, produces `.exe`) | MSYS2 / MinGW-w64, see below | **experimental**: code generation and kernel32 layer written, assembly output checked for syntax, **never executed** |
+| **Windows 10/11 — via WSL2** (recommended) | use the graphical installer or run `tools\windows\setup-wsl.ps1` once | supported through the Linux build; WSL glue is unit tested |
+| **Windows — native** (`orb.exe`, produces `.exe`) | graphical installer; WSL2 remains recommended | **experimental**: CI builds the native compiler on Windows UCRT64 and runs `orb doctor` plus a compiled hello-world program; broader hardware/toolchain coverage is still limited |
 | **macOS Intel** | Xcode command line tools, `make`, see below | **experimental**: same caveat |
 | **macOS Apple Silicon** | same; programs are x86-64 and run through Rosetta 2 | **experimental** (no native arm64 backend) |
 | **Browser / WebAssembly** (`--target wasm`) | `orb build prog.orb --target wasm`; see [WASM.md](WASM.md) and [WEB.md](WEB.md) | **works, tested** in Chromium and Node (no assembler or linker needed); Firefox / Safari not tested |
 | **Dev Container / Codespaces / Docker** | `.devcontainer/` is included | Linux, supported |
 
-> **What "experimental" means here.** The development environment for this project is Linux only.
-> For the Windows and macOS targets the compiler's output was generated for every example and test
-> program and checked to assemble, and the generated entry points, calling sequences and data sections
-> were reviewed — but no program has been *run* on those systems. Run `orb doctor`: it compiles
-> and runs a small program and tells you precisely which step fails. If something fails, the message
-> (plus `orb build file.orb --target windows -S`) is what is needed to fix it.
+> **What "experimental" means here.** Linux is the fully supported native target. The Windows
+> compiler is now built and smoke-tested on a real Windows CI runner (UCRT64): `orb doctor` and a
+> compiled hello-world executable both run successfully. That is useful coverage, but not a guarantee
+> for every Windows installation or third-party toolchain. The macOS target remains unexecuted on
+> real macOS hardware; it is generated and checked from Linux. Run `orb doctor` on your own system
+> before relying on a native target.
 
 ## Linux
 ```sh

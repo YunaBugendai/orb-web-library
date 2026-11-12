@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Interactive Orb! installer for Linux, macOS and supported MinGW environments on Windows."""
+"""Interactive Orb! installer for Linux and macOS source checkouts."""
 from __future__ import annotations
 
 import argparse
@@ -127,10 +127,9 @@ def main() -> int:
     print("==========")
     print(f"Host: {system} {platform.machine()}")
     print("The core compiler includes math, strings, I/O, WebAssembly and the browser host runtime.")
-    if system == "Windows" and not (shutil.which("make") and (shutil.which("gcc") or shutil.which("cc"))):
-        print("\nThis terminal does not have the native build toolchain.")
-        print("For Windows, use the Orb! Setup.exe graphical installer, or open an MSYS2 MinGW x64 shell.")
-        print("Native Windows code generation is experimental; WSL2 is the recommended runtime.")
+    if system == "Windows":
+        print("\nUse the graphical Orb-Setup.exe installer on Windows.")
+        print("The terminal component wizard currently supports Linux and macOS source checkouts.")
         return 2
 
     make = shutil.which("make") or shutil.which("mingw32-make")
