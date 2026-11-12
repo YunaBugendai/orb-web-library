@@ -7,7 +7,8 @@ source.orb ─► lexer ─► parser ─► AST ─► sema ─► typed AST �
 ```
 
 The compiler is ~5,500 lines of dependency-free C11 (`src/`). It is a real compiler: it
-generates machine code through GNU `as`/`ld`. It never translates to another high-level language.
+generates target-specific x86-64 assembly and delegates assembling/linking to the platform
+toolchain. It never translates to another high-level language.
 
 | file | role |
 |---|---|
@@ -22,9 +23,11 @@ generates machine code through GNU `as`/`ld`. It never translates to another hig
 
 ## Key decisions
 
-**No libc, runtime in Orb!.** `std/core.orb` implements printing, allocation and panics on top of
-raw `syscall`s. The compiler only emits `_start`, which calls `rt_init`, `main`, `rt_exit`.
-This keeps binaries tiny and the runtime fully inspectable.
+**Platform-specific runtime, shared Orb! core.** `std/core.orb` implements printing,
+allocation and panics in Orb!, using the automatically selected `os` module. Linux uses raw
+system calls and does not link libc; macOS uses libSystem; Windows uses kernel32 through the
+Microsoft x64 calling convention and MinGW startup/linking. The Linux entry point is
+`_start`; macOS and Windows use the platform C-runtime `main` entry point.
 
 **Value classes.** Every type is *scalar* (one register: ints, floats, pointers, bools, enums),
 *pair* (two registers: `str`, slices and error unions with a scalar payload) or *memory*
@@ -72,6 +75,15 @@ scratch registers for instruction sequences, which keeps the emitter simple and 
 correct. Parallel moves (call arguments, parameters) are sequenced with cycle breaking.
 
 ## Testing strategy
+
+Run the regression suite with `make test`. It runs every fixture in `tests/ok` in the
+default, `--no-opt` and `--unchecked` modes; checks expected diagnostics in `tests/err`;
+checks runtime panic messages and exit status in `tests/panic`; and runs CLI smoke tests.
+The VS Code extension tests are also run when Node.js is installed (otherwise they are
+explicitly skipped).
+
+The differential fuzzer is a separate, opt-in test and is **not** run by `make test`:
+`python3 tests/fuzz.py 500` generates and checks 500 programs, with and without the optimiser.
 
 * `tests/ok`: programs with expected output, each run default, `--no-opt` and `--unchecked`.
 * `tests/err`: each program must fail to compile with a specific message.

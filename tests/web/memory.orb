@@ -1,0 +1,80 @@
+// Memory management tests: handles, strings, listeners and heap blocks must not leak.
+use web;
+use strings;
+use testlib;
+
+fn noop() {}
+
+// creates, uses and releases many elements and strings
+pub fn churn(rounds: i32) -> i32 {
+    list := web.get_element("list") catch |e| { return -1; };
+    for i in 0..(rounds as i64) {
+        li := web.create("li") catch |e| { return -2; };
+        s := strings.from_i64(i);
+        web.set_text(li, s) catch |e| { return -3; };
+        free(s.ptr);
+        web.append(list, li) catch |e| { return -4; };
+        t := web.get_text(li) catch |e| { return -5; };
+        web.free_str(t);
+        web.remove(li) catch |e| { return -6; };
+        web.release(li);
+    }
+    web.release(list);
+    return 0;
+}
+
+// registers and removes listeners
+pub fn listeners(rounds: i32) -> i32 {
+    out := web.get_element("out") catch |e| { return -1; };
+    for i in 0..(rounds as i64) {
+        l := web.on_click(out, noop) catch |e| { return -2; };
+        web.off(l) catch |e| { return -3; };
+    }
+    web.release(out);
+    return 0;
+}
+
+// builds and releases JSON values
+pub fn json(rounds: i32) -> i32 {
+    for i in 0..(rounds as i64) {
+        o := web.json_object() catch |e| { return -1; };
+        a := web.json_array() catch |e| { return -2; };
+        n := web.json_from_num(i as f64) catch |e| { return -3; };
+        web.json_push(a, n) catch |e| { return -4; };
+        web.json_set(o, "list", a) catch |e| { return -5; };
+        t := web.json_stringify(o) catch |e| { return -6; };
+        web.free_str(t);
+        web.json_release(n);
+        web.json_release(a);
+        web.json_release(o);
+    }
+    return 0;
+}
+
+// allocates and frees blocks larger than the small-block limit
+pub fn big_blocks(rounds: i32) -> i32 {
+    for i in 0..(rounds as i64) {
+        p := make(u8, 2500000);
+        p[0] = 1;
+        p[2499999] = 2;
+        if p[0] + p[2499999] != 3 { return -1; }
+        free(p.ptr);
+    }
+    return 0;
+}
+
+// small blocks of many sizes
+pub fn small_blocks(rounds: i32) -> i32 {
+    for i in 0..(rounds as i64) {
+        p := make(u8, 1 + (i * 37) % 5000);
+        p[0] = 7;
+        free(p.ptr);
+    }
+    return 0;
+}
+
+pub fn live() -> i64 { return web.live_callbacks(); }
+
+fn main() {
+    println("ready");
+}

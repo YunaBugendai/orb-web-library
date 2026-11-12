@@ -1,0 +1,42 @@
+// Counter: click handlers, DOM updates, localStorage persistence.
+use web;
+use strings;
+
+count: i64 = 0;
+
+fn show() {
+    s := strings.from_i64(count);
+    web.set_text_by_id("count", s) catch |e| { web.log_error("count element missing"); };
+    el := web.get_element("count") catch |e| { free(s.ptr); return; };
+    if count < 0 {
+        web.add_class(el, "neg") catch |e| {};
+    } else {
+        web.remove_class(el, "neg") catch |e| {};
+    }
+    web.release(el);
+    web.local_set("orb-counter", s) catch |e| {
+        web.set_text_by_id("note", "(storage unavailable: the count will not be saved)") catch |e2| {};
+    };
+    free(s.ptr);
+}
+
+fn inc() { count += 1; show(); }
+fn dec() { count -= 1; show(); }
+fn reset() { count = 0; show(); }
+
+fn button(id: str, f: fn()) {
+    b := web.get_element(id) catch |e| { web.log_error("missing button"); return; };
+    web.on_click(b, f) catch |e| { web.log_error("cannot listen"); return; };
+}
+
+fn main() {
+    saved := web.local_get("orb-counter") catch "";
+    if saved.len > 0 {
+        count = strings.parse_i64(saved) catch 0;
+        web.free_str(saved);
+    }
+    button("inc", inc);
+    button("dec", dec);
+    button("reset", reset);
+    show();
+}

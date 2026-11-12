@@ -1,0 +1,47 @@
+// os (Linux x86-64) - the system interface used by core, io and friends.
+// Files are identified by integer descriptors; 0/1/2 are stdin/stdout/stderr.
+
+pub fn init() {}
+
+pub fn write(fd: i64, p: *u8, n: i64) -> i64 {
+    return __syscall(1, fd, p, n);
+}
+
+pub fn read(fd: i64, p: *u8, n: i64) -> i64 {
+    return __syscall(0, fd, p, n);
+}
+
+// path must be NUL-terminated. Returns a descriptor, -2 if the file does not exist, -1 on other errors.
+pub fn open_read(path: *u8) -> i64 {
+    r := __syscall(2, path, 0, 0);
+    if r == -2 { return -2; }
+    if r < 0 { return -1; }
+    return r;
+}
+
+// creates or truncates the file
+pub fn open_write(path: *u8) -> i64 {
+    r := __syscall(2, path, 577, 420);
+    if r < 0 { return -1; }
+    return r;
+}
+
+pub fn close(fd: i64) {
+    __syscall(3, fd);
+}
+
+pub fn exit(code: i64) -> never {
+    __syscall(231, code);
+    loop {}
+}
+
+// whole pages of zeroed memory, or null
+pub fn alloc(size: i64) -> *u8 {
+    r := __syscall(9, 0, size, 3, 34, -1, 0);
+    if r < 0 && r > -4096 { return null; }
+    return r as *u8;
+}
+
+pub fn release(p: *u8, size: i64) {
+    __syscall(11, p, size);
+}

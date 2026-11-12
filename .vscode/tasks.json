@@ -1,0 +1,12 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "Build the Orb! compiler", "type": "shell", "command": "make", "group": "build", "problemMatcher": ["$gcc"] },
+    { "label": "Run the test suite", "type": "shell", "command": "make test", "group": "test", "problemMatcher": [] },
+    { "label": "Orb: run current file", "type": "shell", "command": "${workspaceFolder}/build/orb", "args": ["run", "${file}"],
+      "group": "build", "presentation": { "reveal": "always", "panel": "dedicated" }, "problemMatcher": [] },
+    { "label": "Orb: check current file", "type": "shell", "command": "${workspaceFolder}/build/orb", "args": ["check", "${file}"],
+      "problemMatcher": { "owner": "orb", "fileLocation": ["autoDetect", "${workspaceFolder}"],
+        "pattern": { "regexp": "^(.*):(\\d+):(\\d+):\\s+(error|warning|note):\\s+(.*)$", "file": 1, "line": 2, "column": 3, "severity": 4, "message": 5 } } }
+  ]
+}

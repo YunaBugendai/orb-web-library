@@ -838,6 +838,19 @@ static void lw_builtin(Node *n, Opnd *r0, Opnd *r1) {
         i->args[0] = a; i->args[1] = b;
         return;
     }
+    case B_MEMGROW: {
+        Opnd a = lw_scalar(n->list.d[0]);
+        int d = nreg(0);
+        Ins *i = emit(OP_MEMGROW); i->dst = d; i->a = a;
+        *r0 = R(d);
+        return;
+    }
+    case B_MEMSIZE: {
+        int d = nreg(0);
+        Ins *i = emit(OP_MEMSIZE); i->dst = d;
+        *r0 = R(d);
+        return;
+    }
     case B_ERRNAME: {
         Opnd code = lw_scalar(n->list.d[0]);
         int c = nreg(0);
@@ -895,6 +908,7 @@ static void lw_call(Node *n, Opnd *r0, Opnd *r1, Addr *sret) {
     (void)i;
     if (d0 >= 0) *r0 = R(d0);
     if (d1 >= 0) *r1 = R(d1);
+    if (callee && callee->is_extern && rc == TC_SCALAR && ty_is_int(rt) && ty_bits(rt) < 64) *r0 = norm(*r0, rt);
     if (rc == TC_MEM) *r0 = lea(*sret);
 }
 
@@ -1289,7 +1303,7 @@ static const char *opnames[OP__COUNT] = {
     "nop", "label", "jmp", "jcc", "mov", "fconst", "add", "sub", "mul", "div", "udiv", "mod", "umod",
     "and", "or", "xor", "shl", "shr", "sar", "neg", "not", "sext", "zext", "set",
     "fadd", "fsub", "fmul", "fdiv", "fneg", "fsqrt", "fset", "i2f", "u2f", "f2i", "f2u",
-    "load", "store", "lea", "call", "ret", "syscall", "memcpy", "memzero", "param",
+    "load", "store", "lea", "call", "ret", "syscall", "memcpy", "memzero", "param", "memgrow", "memsize",
 };
 const char *cc_name(int cc) {
     static const char *n[] = { "e", "ne", "l", "le", "g", "ge", "b", "be", "a", "ae" };

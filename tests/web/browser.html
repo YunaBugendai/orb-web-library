@@ -1,0 +1,9 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>browser</title></head>
+<body><div id="log"></div>
+<script type="module">
+import { start } from "/web/orb.js";
+window.orb = await start("/build/web-tests/browser.wasm");
+window.ready = true;
+</script>
+</body></html>

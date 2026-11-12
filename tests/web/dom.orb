@@ -1,0 +1,194 @@
+// DOM manipulation tests (run in a real browser by tests/web/run.py).
+use web;
+use strings;
+use testlib;
+
+fn has(s: str, needle: str) -> bool {
+    return strings.find(s, needle) >= 0;
+}
+
+fn c_get(id: str) -> i64 {
+    web.get_element(id) catch |e| { return testlib.code(e as i64); };
+    return 0;
+}
+fn c_query(sel: str) -> i64 {
+    web.query(sel) catch |e| { return testlib.code(e as i64); };
+    return 0;
+}
+fn c_attr(el: web.Element, name: str) -> i64 {
+    web.get_attr(el, name) catch |e| { return testlib.code(e as i64); };
+    return 0;
+}
+fn c_prop_num(el: web.Element, name: str) -> i64 {
+    web.get_prop_num(el, name) catch |e| { return testlib.code(e as i64); };
+    return 0;
+}
+fn c_set_text(el: web.Element, s: str) -> i64 {
+    web.set_text(el, s) catch |e| { return testlib.code(e as i64); };
+    return 0;
+}
+fn c_class(el: web.Element, name: str) -> i64 {
+    web.add_class(el, name) catch |e| { return testlib.code(e as i64); };
+    return 0;
+}
+
+fn run() -> ! {
+    // ---- selecting
+    box := try web.get_element("box");
+    testlib.check("get_element finds an element", true);
+    testlib.check("get_element: missing id is NotFound", c_get("does-not-exist") == testlib.NOT_FOUND);
+    first := try web.query(".item");
+    t1 := try web.get_text(first);
+    testlib.check("query returns the first match", t1 == "1");
+    web.free_str(t1);
+    testlib.check("query: bad selector is Invalid", c_query("((") == testlib.INVALID);
+    testlib.check("query: no match is NotFound", c_query(".nothing") == testlib.NOT_FOUND);
+    items := try web.query_all(".item");
+    testlib.check("query_all counts matches", items.len == 3);
+    last := try web.get_text(items[2]);
+    testlib.check("query_all keeps document order", last == "3");
+    web.free_str(last);
+    for it in items { web.release(it); }
+    free(items.ptr);
+    same := try web.get_element("box");
+    testlib.check("the same element gives the same handle", same.h == box.h);
+    web.release(same);
+
+    // ---- text
+    span := try web.get_element("t");
+    s0 := try web.get_text(span);
+    testlib.check("get_text", s0 == "text");
+    web.free_str(s0);
+    try web.set_text(span, "héllo ✓ 日本語 😀");
+    s1 := try web.get_text(span);
+    testlib.check("set_text/get_text round-trips UTF-8", s1 == "héllo ✓ 日本語 😀");
+    web.free_str(s1);
+    try web.set_text(span, "<b>x</b>");
+    h1 := try web.get_html(span);
+    testlib.check("set_text escapes markup (no HTML injection)", has(h1, "&lt;b&gt;"));
+    web.free_str(h1);
+    try web.set_html(span, "<i>ok</i>");
+    tx := try web.get_text(span);
+    testlib.check("set_html parses markup", tx == "ok");
+    web.free_str(tx);
+    try web.set_text_by_id("t", "by id");
+    s2 := try web.get_text(span);
+    testlib.check("set_text_by_id", s2 == "by id");
+    web.free_str(s2);
+    try web.set_text(span, "");
+    s3 := try web.get_text(span);
+    testlib.check("empty string", s3.len == 0);
+    web.free_str(s3);
+
+    // ---- attributes
+    xv := try web.get_attr(box, "data-x");
+    testlib.check("get_attr", xv == "1");
+    web.free_str(xv);
+    testlib.check("get_attr: absent attribute is NotFound", c_attr(box, "data-none") == testlib.NOT_FOUND);
+    try web.set_attr(box, "data-x", "two words");
+    xv2 := try web.get_attr(box, "data-x");
+    testlib.check("set_attr", xv2 == "two words");
+    web.free_str(xv2);
+    ha := try web.has_attr(box, "data-x");
+    testlib.check("has_attr true", ha);
+    try web.remove_attr(box, "data-x");
+    hb := try web.has_attr(box, "data-x");
+    testlib.check("remove_attr / has_attr false", !hb);
+
+    // ---- classes
+    hc := try web.has_class(box, "a");
+    testlib.check("has_class", hc);
+    try web.add_class(box, "c");
+    hc2 := try web.has_class(box, "c");
+    testlib.check("add_class", hc2);
+    try web.remove_class(box, "a");
+    hc3 := try web.has_class(box, "a");
+    testlib.check("remove_class", !hc3);
+    tg := try web.toggle_class(box, "hidden");
+    testlib.check("toggle_class adds", tg);
+    tg2 := try web.toggle_class(box, "hidden");
+    testlib.check("toggle_class removes", !tg2);
+    testlib.check("add_class: a class with a space is Invalid", c_class(box, "two words") == testlib.INVALID);
+    try web.set_style(box, "color", "red");
+    st := try web.get_attr(box, "style");
+    testlib.check("set_style", has(st, "color: red"));
+    web.free_str(st);
+
+    // ---- properties
+    inp := try web.get_element("inp");
+    v0 := try web.get_value(inp);
+    testlib.check("get_value", v0 == "init");
+    web.free_str(v0);
+    try web.set_value(inp, "typed");
+    v1 := try web.get_value(inp);
+    testlib.check("set_value", v1 == "typed");
+    web.free_str(v1);
+    chk := try web.get_element("chk");
+    c0 := try web.is_checked(chk);
+    testlib.check("checkbox starts unchecked", !c0);
+    try web.set_checked(chk, true);
+    c1 := try web.is_checked(chk);
+    testlib.check("set_checked / is_checked", c1);
+    num := try web.get_element("num");
+    try web.set_prop_num(num, "valueAsNumber", 3.5);
+    nv := try web.get_prop_num(num, "valueAsNumber");
+    testlib.check("f64 property round-trip", nv == 3.5);
+    testlib.check("get_prop_num on a string property is WrongType", c_prop_num(inp, "value") == testlib.WRONG_TYPE);
+    testlib.check("get_prop_num on a missing property is NotFound", c_prop_num(inp, "noSuchProperty") == testlib.NOT_FOUND);
+    try web.set_prop_str(inp, "placeholder", "type here");
+    ph := try web.get_attr(inp, "placeholder");
+    testlib.check("set_prop_str reflects to the attribute", ph == "type here");
+    web.free_str(ph);
+
+    // ---- creating and removing elements
+    list := try web.get_element("list");
+    li := try web.create("li");
+    try web.set_text(li, "4");
+    try web.add_class(li, "item");
+    try web.append(list, li);
+    items2 := try web.query_all(".item");
+    testlib.check("create + append adds a child", items2.len == 4);
+    for it in items2 { web.release(it); }
+    free(items2.ptr);
+    try web.remove(li);
+    items3 := try web.query_all(".item");
+    testlib.check("remove takes it out again", items3.len == 3);
+    for it in items3 { web.release(it); }
+    free(items3.ptr);
+    txt := try web.create_text("plain text node");
+    try web.append(list, txt);
+    ltxt := try web.get_text(list);
+    testlib.check("create_text node is part of the content", has(ltxt, "plain text node"));
+    web.free_str(ltxt);
+    try web.clear(list);
+    ltxt2 := try web.get_text(list);
+    testlib.check("clear removes all children", ltxt2.len == 0);
+    web.free_str(ltxt2);
+    testlib.check("create: invalid tag name is Invalid", c_create_bad() == testlib.INVALID);
+
+    // ---- handles
+    tmp := try web.create("p");
+    web.release(tmp);
+    testlib.check("a released handle is rejected (BadHandle)", c_set_text(tmp, "x") == testlib.BAD_HANDLE);
+    bogus := web.Element{ h: 123456 };
+    testlib.check("a made-up handle is rejected (BadHandle)", c_set_text(bogus, "x") == testlib.BAD_HANDLE);
+    b := try web.body();
+    d := try web.document();
+    w := try web.window();
+    testlib.check("body / document / window handles", b.h > 0 && d.h > 0 && w.h > 0);
+    return;
+}
+
+fn c_create_bad() -> i64 {
+    web.create("not a tag!") catch |e| { return testlib.code(e as i64); };
+    return 0;
+}
+
+fn main() {
+    run() catch |e| {
+        println("FAIL unexpected error: ", e);
+        testlib.done();
+        return;
+    };
+    testlib.done();
+}

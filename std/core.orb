@@ -1,6 +1,8 @@
 // core - the Orb! runtime and prelude. Every program imports this implicitly.
 // It is written in Orb! itself and talks to the Linux kernel directly (no libc).
 
+use os;
+
 // ---------------------------------------------------------------- process
 g_argc: i64 = 0;
 g_argv: **u8;
@@ -8,12 +10,12 @@ g_argv: **u8;
 pub fn rt_init(argc: i64, argv: **u8) {
     g_argc = argc;
     g_argv = argv;
+    os.init();
 }
 
 pub fn rt_exit(code: i64) -> never {
     flush();
-    __syscall(231, code);
-    loop {}
+    os.exit(code);
 }
 
 pub fn rt_main_err(code: i64) -> never {
@@ -37,14 +39,10 @@ out_buf: [65536]u8;
 out_len: i64 = 0;
 cur_fd: i64 = 1;
 
-fn sys_write(fd: i64, p: *u8, n: i64) -> i64 {
-    return __syscall(1, fd, p, n);
-}
-
 fn write_all(fd: i64, p: *u8, n: i64) {
     off := 0;
     while off < n {
-        r := sys_write(fd, p + off, n - off);
+        r := os.write(fd, p + off, n - off);
         if r <= 0 { break; }
         off += r;
     }
@@ -256,19 +254,13 @@ heap_cur: *u8;
 heap_end: *u8;
 free_lists: [32]*u8;
 
-fn sys_mmap(size: i64) -> *u8 {
-    r := __syscall(9, 0, size, 3, 34, -1, 0);
-    if r < 0 && r > -4096 { return null; }
-    return r as *u8;
-}
-
 fn alloc_raw(n: i64, zero: bool) -> *u8 {
     want := n;
     if want < 1 { want = 1; }
     total := want + HDR;
     if total > MAX_SMALL {
         sz := (total + 4095) / 4096 * 4096;
-        p := sys_mmap(sz);
+        p := os.alloc(sz);
         if p == null { panic("out of memory"); }
         hdr := p as *i64;
         hdr[0] = -1;
@@ -288,7 +280,7 @@ fn alloc_raw(n: i64, zero: bool) -> *u8 {
         return head;
     }
     if heap_cur + size > heap_end {
-        p := sys_mmap(CHUNK);
+        p := os.alloc(CHUNK);
         if p == null { panic("out of memory"); }
         heap_cur = p;
         heap_end = p + CHUNK;
@@ -318,7 +310,7 @@ pub fn mem_free(p: *u8) {
     hdr := (p - HDR) as *i64;
     cls := hdr[0];
     if cls < 0 {
-        __syscall(11, hdr, hdr[1]);
+        os.release(hdr as *u8, hdr[1]);
         return;
     }
     *(p as **u8) = free_lists[cls];

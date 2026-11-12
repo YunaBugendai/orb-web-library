@@ -1,0 +1,4 @@
+{
+  "files.associations": { "*.orb": "orb" },
+  "orb.path": "${workspaceFolder}/build/orb"
+}

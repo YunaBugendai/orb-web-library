@@ -104,7 +104,7 @@ typedef enum {
 enum { CV_ARR2SLICE = 1, CV_ERRWRAP, CV_NEVER };
 // builtin ids for N_CALL (n->aux)
 enum { B_NONE = 0, B_PRINT, B_PRINTLN, B_EPRINT, B_EPRINTLN, B_FREE, B_SYSCALL, B_SQRT,
-       B_MEMCPY, B_MEMZERO, B_ERRNAME };
+       B_MEMCPY, B_MEMZERO, B_ERRNAME, B_MEMGROW, B_MEMSIZE };
 // call kinds in n->op for N_CALL
 enum { CALL_DIRECT = 1, CALL_INDIRECT, CALL_BUILTIN };
 
@@ -165,7 +165,7 @@ struct Func {
     Module *mod;
     Type *type;                 // TY_FUNC
     char *asm_name;
-    bool is_extern, checked, sig_done, queued;
+    bool is_extern, checked, sig_done, queued, winabi;
     VEC(Sym *) tparams;
     int id;
 };
@@ -199,6 +199,10 @@ void sema_run(Module *main_mod);
 Sym *core_sym(const char *name);                 // lookup pub symbol in core module
 const char *std_source(const char *name);        // embedded std library lookup (generated)
 const char *std_override_dir(void);
-extern const char *g_std_dir;                    // optional directory override
+extern const char *g_std_dir;
+enum { TGT_LINUX, TGT_MACOS, TGT_WINDOWS, TGT_WASM };
+extern int g_target;                             // compilation target
+extern int g_host;                               // platform the compiler runs on
+const char *target_name(int t);                    // optional directory override
 
 #endif

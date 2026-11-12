@@ -1,0 +1,16 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>events</title></head>
+<body>
+<button id="btn">btn</button> <button id="rm">remove listener</button> <button id="rearm">re-add</button>
+<input id="txt" type="text"> <input id="sel" type="checkbox">
+<form id="frm" action="/should-not-navigate"><input name="q" value="v"><button id="submit" type="submit">send</button></form>
+<div id="area" style="width:120px;height:60px;background:#ddd">area</div>
+<p>clicks=<span id="clicks">0</span> input=<span id="inval"></span> changes=<span id="changes">0</span>
+ submits=<span id="submits">0</span> key=<span id="lastkey"></span> up=<span id="lastup"></span>
+ mouse=<span id="mouse"></span> evtype=<span id="evtype"></span></p>
+<script type="module">
+import { start } from "/web/orb.js";
+window.orb = await start("/build/web-tests/events.wasm");
+window.ready = true;
+</script>
+</body></html>

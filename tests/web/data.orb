@@ -1,0 +1,142 @@
+// Data exchange tests: strings, numbers, booleans and structured data between Orb! and the browser.
+use web;
+use strings;
+use testlib;
+
+struct Point { x: f64, y: f64 }
+
+// Orb! values are turned into JSON through the web API and back.
+fn point_to_json(p: Point) -> web.Json! {
+    o := try web.json_object();
+    x := try web.json_from_num(p.x);
+    y := try web.json_from_num(p.y);
+    try web.json_set(o, "x", x);
+    try web.json_set(o, "y", y);
+    web.json_release(x);
+    web.json_release(y);
+    return o;
+}
+
+fn point_from_json(j: web.Json) -> Point! {
+    xj := try web.json_get(j, "x");
+    yj := try web.json_get(j, "y");
+    p := Point{ x: try web.json_num(xj), y: try web.json_num(yj) };
+    web.json_release(xj);
+    web.json_release(yj);
+    return p;
+}
+
+fn c_parse(s: str) -> i64 {
+    web.json_parse(s) catch |e| { return testlib.code(e as i64); };
+    return 0;
+}
+fn c_json_str(j: web.Json) -> i64 {
+    web.json_str(j) catch |e| { return testlib.code(e as i64); };
+    return 0;
+}
+fn c_json_get(j: web.Json, k: str) -> i64 {
+    web.json_get(j, k) catch |e| { return testlib.code(e as i64); };
+    return 0;
+}
+
+fn run() -> ! {
+    out := try web.get_element("out");
+
+    // ---- strings: ASCII, multi-byte UTF-8, embedded NUL and newlines
+    samples := ["", "a", "hello world", "héllo wörld", "日本語のテキスト", "emoji 😀🎉 and ✓", "tab\tnew\nline", "quote \" backslash \\"];
+    for s in samples {
+        try web.set_text(out, s);
+        back := try web.get_text(out);
+        testlib.check("string round-trip", back == s);
+        web.free_str(back);
+    }
+    nul := "a\0b";
+    try web.set_text(out, nul);
+    nb := try web.get_text(out);
+    testlib.check("string with an embedded NUL byte", nb.len == 3 && nb[1] == 0);
+    web.free_str(nb);
+
+    // ---- large strings (forces linear memory to grow while JS holds views)
+    n := 3000000;
+    big := make(u8, n);
+    for i in 0..n { big[i] = 'a' + (i % 26) as u8; }
+    try web.set_text(out, big as str);
+    back := try web.get_text(out);
+    same := back.len == n;
+    if same {
+        for i in 0..n {
+            if back[i] != big[i] { same = false; break; }
+        }
+    }
+    testlib.check("3 MB string round-trips byte for byte", same);
+    web.free_str(back);
+    free(big.ptr);
+
+    // ---- numbers and booleans
+    num := try web.get_element("num");
+    flag := try web.get_element("flag");
+    values := [0.0, 1.0, -2.5, 3.141592653589793, 1e300, -1e-300, 123456789.125];
+    for v in values {
+        try web.set_prop_num(num, "valueAsNumber", v);
+        got := try web.get_prop_num(num, "valueAsNumber");
+        testlib.check("f64 round-trip", got == v);
+    }
+    try web.set_prop_bool(flag, "checked", true);
+    b1 := try web.get_prop_bool(flag, "checked");
+    try web.set_prop_bool(flag, "checked", false);
+    b2 := try web.get_prop_bool(flag, "checked");
+    testlib.check("booleans in both directions", b1 && !b2);
+    try web.set_prop_num(num, "tabIndex", 7.0);
+    ti := try web.get_prop_num(num, "tabIndex");
+    testlib.check("integer-valued number property", ti == 7.0);
+
+    // ---- structured data
+    j := try point_to_json(Point{ x: 1.25, y: -4.5 });
+    text := try web.json_stringify(j);
+    testlib.check("struct -> JSON text", text == "{\"x\":1.25,\"y\":-4.5}");
+    j2 := try web.json_parse(text);
+    p := try point_from_json(j2);
+    testlib.check("JSON text -> struct", p.x == 1.25 && p.y == -4.5);
+    web.free_str(text);
+    web.json_release(j);
+    web.json_release(j2);
+
+    doc := try web.json_parse("{\"users\":[{\"name\":\"Ada\",\"age\":36,\"admin\":true},{\"name\":\"Linus\",\"age\":54,\"admin\":false}],\"count\":2}");
+    users := try web.json_get(doc, "users");
+    ulen := try web.json_len(users);
+    testlib.check("nested JSON: array length", ulen == 2);
+    total := 0.0;
+    admins := 0;
+    for i in 0..ulen {
+        u := try web.json_at(users, i);
+        ageJ := try web.json_get(u, "age");
+        total += try web.json_num(ageJ);
+        adminJ := try web.json_get(u, "admin");
+        if try web.json_bool(adminJ) { admins += 1; }
+        web.json_release(ageJ);
+        web.json_release(adminJ);
+        web.json_release(u);
+    }
+    testlib.check("nested JSON: numbers and booleans", total == 90.0 && admins == 1);
+    web.json_release(users);
+
+    // ---- explicit error handling
+    testlib.check("invalid JSON is Invalid", c_parse("{not json") == testlib.INVALID);
+    testlib.check("empty JSON is Invalid", c_parse("") == testlib.INVALID);
+    numj := try web.json_parse("42");
+    testlib.check("json_str on a number is WrongType", c_json_str(numj) == testlib.WRONG_TYPE);
+    testlib.check("json_get on a number is WrongType", c_json_get(numj, "x") == testlib.WRONG_TYPE);
+    testlib.check("json_get: missing member is NotFound", c_json_get(doc, "nope") == testlib.NOT_FOUND);
+    web.json_release(numj);
+    web.json_release(doc);
+    return;
+}
+
+fn main() {
+    run() catch |e| {
+        println("FAIL unexpected error: ", e);
+        testlib.done();
+        return;
+    };
+    testlib.done();
+}

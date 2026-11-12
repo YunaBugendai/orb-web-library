@@ -1,0 +1,33 @@
+// A trap or panic inside a handler must not break the program's later events.
+use web;
+use strings;
+
+zero: i64 = 0;
+count: i64 = 0;
+
+fn on_bump() {
+    count += 1;
+    s := strings.from_i64(count);
+    web.set_text_by_id("n", s) catch |e| {};
+    free(s.ptr);
+}
+
+fn on_boom() {
+    frame: [64]i64;
+    frame[0] = 5;
+    x := frame[0] / zero;      // built with --unchecked: a real WebAssembly trap (integer divide by zero)
+    println(x);
+}
+
+fn on_die() {
+    panic("deliberate panic");
+}
+
+fn main() {
+    b := web.get_element("bump") catch |e| { return; };
+    web.on_click(b, on_bump) catch |e| { return; };
+    c := web.get_element("boom") catch |e| { return; };
+    web.on_click(c, on_boom) catch |e| { return; };
+    d := web.get_element("die") catch |e| { return; };
+    web.on_click(d, on_die) catch |e| { return; };
+}

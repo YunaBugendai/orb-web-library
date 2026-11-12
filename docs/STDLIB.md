@@ -2,7 +2,8 @@
 
 The library is written in Orb! (`std/*.orb`) and embedded into the compiler binary, so an
 installed `orb` needs no support files. Every program implicitly sees `core`; the other
-modules are imported with `use`.
+modules are imported with `use`. The core module selects the target-specific `os` implementation
+automatically: `os_linux.orb`, `os_windows.orb` or `os_macos.orb`.
 
 ## core (implicit)
 | function | description |
@@ -19,7 +20,8 @@ modules are imported with `use`.
 | `new(T)`, `make(T, n)`, `free(p)` | typed allocation built-ins (zeroed memory) |
 
 The allocator is a size-class free-list allocator (16-byte header, 16-byte alignment, 4 MB
-chunks from `mmap`; blocks above 1 MB are mapped individually and returned to the OS on `free`).
+chunks from the selected OS allocator; blocks above 1 MB are mapped individually and returned
+to the OS on `free`).
 
 ## math
 `PI`, `E`, `sqrt`, `abs<T>`, `min<T>`, `max<T>`, `clamp<T>`, `floor`, `ceil`, `round`,
@@ -46,3 +48,11 @@ v.push(3);                // push, get, set, pop, count, items, free_vec
 println(v.get(0), v.len);
 v.free_vec();
 ```
+
+
+## os (platform layer)
+
+The compiler resolves the core module's `use os;` to the implementation for the selected
+target. Linux uses raw system calls; Windows calls kernel32 through `extern "win64"`; macOS calls
+libSystem. The Windows and macOS targets are experimental and have not yet been run on
+physical Windows/macOS machines.

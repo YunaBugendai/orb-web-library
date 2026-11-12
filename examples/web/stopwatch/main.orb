@@ -1,0 +1,68 @@
+// Stopwatch: set_interval, now(), clear_timer.
+use web;
+use strings;
+
+running: bool = false;
+started: f64 = 0.0;
+elapsed: f64 = 0.0;
+timer: web.Timer;
+button: web.Element;
+
+fn pad2(n: i64) -> str {
+    s := strings.from_i64(n);
+    if s.len >= 2 { return s; }
+    r := strings.concat("0", s);
+    free(s.ptr);
+    return r;
+}
+
+fn show() {
+    total := (elapsed / 100.0) as i64;       // tenths of a second
+    tenth := total % 10;
+    secs := (total / 10) % 60;
+    mins := total / 600;
+    m := pad2(mins);
+    s := pad2(secs);
+    t := strings.from_i64(tenth);
+    a := strings.concat(m, ":");
+    b := strings.concat(a, s);
+    c := strings.concat(b, ".");
+    d := strings.concat(c, t);
+    web.set_text_by_id("time", d) catch |e| {};
+    free(m.ptr); free(s.ptr); free(t.ptr); free(a.ptr); free(b.ptr); free(c.ptr); free(d.ptr);
+}
+
+fn tick() {
+    elapsed = web.now() - started;
+    show();
+}
+
+fn on_startstop() {
+    if running {
+        web.clear_timer(timer);
+        running = false;
+        web.set_text(button, "Resume") catch |e| {};
+    } else {
+        started = web.now() - elapsed;
+        timer = web.set_interval(50, tick) catch |e| { return; };
+        running = true;
+        web.set_text(button, "Stop") catch |e| {};
+    }
+}
+
+fn on_reset() {
+    if running {
+        web.clear_timer(timer);
+        running = false;
+    }
+    elapsed = 0.0;
+    web.set_text(button, "Start") catch |e| {};
+    show();
+}
+
+fn main() {
+    button = web.get_element("startstop") catch |e| { return; };
+    web.on_click(button, on_startstop) catch |e| { return; };
+    r := web.get_element("reset") catch |e| { return; };
+    web.on_click(r, on_reset) catch |e| { return; };
+}
