@@ -28,11 +28,11 @@ Name: "custom"; Description: "Custom installation"; Flags: iscustom
 
 [Components]
 Name: "compiler"; Description: "Orb! compiler + embedded standard modules + WebAssembly runtime"; Types: compact full custom; Flags: fixed
-Name: "vscode"; Description: "Visual Studio Code language extension"; Types: full
-Name: "examples"; Description: "Example projects"; Types: full
-Name: "docs"; Description: "Offline documentation"; Types: full
-Name: "stdlib"; Description: "Standard-library source files (for contributors)"; Types: full
-Name: "websrc"; Description: "Browser host source (for Web runtime contributors)"; Types: full
+Name: "vscode"; Description: "Visual Studio Code language extension"; Types: full custom
+Name: "examples"; Description: "Example projects"; Types: full custom
+Name: "docs"; Description: "Offline documentation"; Types: full custom
+Name: "stdlib"; Description: "Standard-library source files (for contributors)"; Types: full custom
+Name: "websrc"; Description: "Browser host source (for Web runtime contributors)"; Types: full custom
 
 [Tasks]
 Name: "addtopath"; Description: "Add Orb! to the current user's PATH"; GroupDescription: "Optional integrations:"; Flags: checkedonce
@@ -47,6 +47,9 @@ Source: "..\build\dist\orb-lang-0.1.0.vsix"; DestDir: "{app}\extensions"; Flags:
 
 [Icons]
 Name: "{group}\Orb! Documentation"; Filename: "{app}\docs\DISTRIBUTION.md"; Components: docs
+
+[Run]
+Filename: "{cmd}"; Parameters: "/C code --install-extension ""{app}\extensions\orb-lang-0.1.0.vsix"" --force"; StatusMsg: "Installing the Orb! extension into Visual Studio Code..."; Flags: runhidden waituntilterminated; Components: vscode; Check: CodeCliAvailable
 
 [Code]
 function HasPathEntry(const ExistingPath, Dir: string): Boolean;
@@ -83,6 +86,7 @@ begin
     if ExistingPath <> '' then ExistingPath := ExistingPath + ';';
     ExistingPath := ExistingPath + Dir;
     RegWriteExpandStringValue(HKEY_CURRENT_USER, 'Environment', 'Path', ExistingPath);
+    SaveStringToFile(ExpandConstant('{app}\orb-path-added.marker'), '1', False);
   end;
 end;
 
@@ -119,7 +123,20 @@ begin
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Marker: string;
 begin
-  if CurUninstallStep = usUninstall then
+  Marker := ExpandConstant('{app}\orb-path-added.marker');
+  if (CurUninstallStep = usUninstall) and FileExists(Marker) then begin
     RemoveOrbFromPath;
+    DeleteFile(Marker);
+  end;
+end;
+
+function CodeCliAvailable: Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := Exec(ExpandConstant('{cmd}'), '/C where code >nul 2>nul', '',
+    SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
 end;

@@ -2,7 +2,7 @@ name: Orb! compiler, WebAssembly and browser tests
 
 on:
   push:
-    branches: [main, productize-orb-web-sdk]
+    branches: [main, bundled-standard-library-installer]
   pull_request:
   workflow_dispatch:
 
