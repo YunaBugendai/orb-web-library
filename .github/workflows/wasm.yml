@@ -1,4 +1,4 @@
-name: Orb! WASM, browser tests and SDK package
+name: Orb! compiler, WebAssembly and browser tests
 
 on:
   push:
@@ -36,14 +36,5 @@ jobs:
         run: make test-web
       - name: Build browser examples
         run: make web-examples
-      - name: Test the installable runtime package
-        run: make test-package
-      - name: Build runtime package archive
-        run: make package-web
-      - name: Upload runtime package
-        uses: actions/upload-artifact@v4
-        with:
-          name: orb-web-runtime-0.2.0
-          path: build/packages/*.tgz
-          if-no-files-found: error
-          retention-days: 90
+      - name: Check installer wizard syntax
+        run: python -m py_compile tools/install.py

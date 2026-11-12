@@ -67,24 +67,12 @@ Details: [docs/VSCODE.md](docs/VSCODE.md).
 
 ## Orb! in the browser (HTML + CSS + Orb!)
 
-`orb build app.orb --target wasm` produces a WebAssembly module, and the standard module `web` gives it the
-DOM, events, timers, storage, `fetch`, JSON and the URL: browser applications without writing JavaScript
-(only the ~350-line loader `web/orb.js` is JavaScript). Start with [docs/WEB.md](docs/WEB.md); the
-compiler side is in [docs/WASM.md](docs/WASM.md); five runnable apps are in `examples/web/`.
+`use web;` is built into the compiler just like `use math;`: there is no npm install or separate
+runtime download. `orb build app.orb --target wasm -o app.wasm` emits both `app.wasm` and a
+self-starting `app.wasm.js` containing the browser bridge. Add only
+`<script type="module" src="./app.wasm.js"></script>` to your HTML. Start with
+[docs/WEB.md](docs/WEB.md); five runnable apps are in `examples/web/`.
 
-
-## Installable Orb! Web runtime
-
-The browser runtime is an npm-compatible ESM package installable directly from GitHub:
-
-~~~
-npm install github:YunaBugendai/orb-web-library
-~~~
-
-Import start from orb-web-runtime in a bundler-based application. The Orb! compiler remains a
-separate build tool; the runtime does not compile source code in the browser. See
-[docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) for installation, TypeScript declarations and the
-starter application.
 
 ## The language in one page
 
@@ -192,7 +180,7 @@ std/        standard library written in Orb! (embedded into the compiler at buil
 examples/   example programs        tests/    regression tests, fuzzer
 examples/web/ browser apps         web/      orb.js, the browser loader (see docs/WEB.md)
 bench/      benchmarks vs C         docs/     language reference, architecture
-tools/      build helper (embeds std/)
+tools/      build, test and installer helpers (embeds std/ and the Web runtime)
 ```
 
 © Orb Technologies
