@@ -73,6 +73,19 @@ DOM, events, timers, storage, `fetch`, JSON and the URL: browser applications wi
 compiler side is in [docs/WASM.md](docs/WASM.md); five runnable apps are in `examples/web/`.
 
 
+## Installable Orb! Web runtime
+
+The browser runtime is an npm-compatible ESM package installable directly from GitHub:
+
+~~~
+npm install github:YunaBugendai/orb-web-library
+~~~
+
+Import start from orb-web-runtime in a bundler-based application. The Orb! compiler remains a
+separate build tool; the runtime does not compile source code in the browser. See
+[docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) for installation, TypeScript declarations and the
+starter application.
+
 ## The language in one page
 
 ```orb

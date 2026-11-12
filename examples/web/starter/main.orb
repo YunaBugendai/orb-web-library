@@ -1,0 +1,31 @@
+// Minimal Orb! Web starter: the button logic runs in WebAssembly.
+use web;
+use strings;
+
+count: i64 = 0;
+
+fn render() {
+    value := strings.from_i64(count);
+    web.set_text_by_id("count", value) catch |e| {
+        web.log_error("count output element was not found");
+    };
+    free(value.ptr);
+}
+
+fn increment() {
+    count += 1;
+    render();
+}
+
+fn main() {
+    button := web.get_element("increment") catch |e| {
+        web.log_error("increment button was not found");
+        return;
+    };
+    web.on_click(button, increment) catch |e| {
+        web.log_error("could not register the click handler");
+        return;
+    };
+    web.release(button);
+    render();
+}

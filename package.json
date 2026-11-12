@@ -1,0 +1,31 @@
+{
+  "name": "orb-web-runtime",
+  "version": "0.2.0",
+  "private": false,
+  "description": "Browser runtime for Orb! WebAssembly applications.",
+  "exports": {
+    ".": {
+      "types": "./web/orb.d.ts",
+      "import": "./web/orb.js"
+    }
+  },
+  "types": "./web/orb.d.ts",
+  "files": [
+    "web/orb.js",
+    "web/orb.d.ts",
+    "web/package.json",
+    "std/web.orb",
+    "std/os_wasm.orb",
+    "docs/WEB.md",
+    "docs/DISTRIBUTION.md"
+  ],
+  "engines": { "node": ">=18" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YunaBugendai/orb-web-library.git"
+  },
+  "scripts": {
+    "test": "node tests/package/smoke.mjs",
+    "pack:check": "npm pack --dry-run"
+  }
+}

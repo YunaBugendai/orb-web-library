@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A minimal browser application built with Orb! and WebAssembly.">
+  <title>Orb! Web starter</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="card">
+    <p class="eyebrow">ORB! WEBASSEMBLY</p>
+    <h1>Orb! Web starter</h1>
+    <p class="muted">The application logic below is compiled from Orb! to WebAssembly.</p>
+    <output id="count" aria-live="polite">0</output>
+    <button id="increment" type="button">Increment</button>
+    <p id="status" class="status" role="status">Loading WebAssembly…</p>
+  </main>
+  <script type="module">
+    import { start } from "../../../web/orb.js";
+
+    const status = document.querySelector("#status");
+    try {
+      await start("./app.wasm");
+      status.textContent = "Orb! application ready.";
+    } catch (error) {
+      console.error(error);
+      status.textContent = "Could not load app.wasm. Run make web-examples from the repository root.";
+    }
+  </script>
+</body>
+</html>
